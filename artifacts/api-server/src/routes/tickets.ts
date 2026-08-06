@@ -187,6 +187,13 @@ router.post("/tickets/extract", async (req, res) => {
     );
 
     const ocrText = await runLocalOcr(imageData, mediaType);
+    logger.info(
+      {
+        fileName,
+        rawOcrText: ocrText,
+      },
+      "Raw OCR text before ticket field parsing",
+    );
     const extraction = parseOcrText(ocrText);
 
     logger.info(
