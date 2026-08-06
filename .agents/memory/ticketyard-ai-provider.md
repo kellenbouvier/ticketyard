@@ -32,3 +32,9 @@ Real ticket parsers need explicit layout branches when OCR emits table headings 
 **Why:** The Metro Green and Willow Oak layouts produced valid OCR but caused labels such as `Loads`, `Ticket Date`, `Line Total`, and `Qty/UOM/Rate` to be selected as values.
 
 **How to apply:** Prefer vendor/layout signatures, validate candidate values, return blanks for uncertain fields, and keep real uploaded ticket fixtures in parser regression coverage.
+
+Metro Green multi-ticket invoices are combined documents, not ticket batches: classify the invoice first and return one extraction with invoice metadata and accounting total.
+
+**Why:** The invoice page lists many individual ticket numbers, but the downstream record must represent the single invoice and use the accounting-system total rather than line-item amounts.
+
+**How to apply:** Use the invoice vendor/layout signature, focused OCR crops for small header/accounting regions, normalize known OCR variants, and leave ticket number/weight blank for the combined invoice row.

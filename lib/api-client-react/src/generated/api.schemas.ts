@@ -30,9 +30,25 @@ export interface TicketExtractionInput {
   imageData: string;
 }
 
+/**
+ * Deterministic document classification.
+ */
+export type TicketExtractionDocumentType = typeof TicketExtractionDocumentType[keyof typeof TicketExtractionDocumentType];
+
+
+export const TicketExtractionDocumentType = {
+  ticket: 'ticket',
+  invoice: 'invoice',
+} as const;
+
 export interface TicketExtraction {
+  /** Deterministic document classification. */
+  documentType: TicketExtractionDocumentType;
   vendor: string;
   ticketNumber: string;
+  invoiceNumber: string;
+  purchaseOrder: string;
+  jobNumber: string;
   date: string;
   weight: string;
   amount: string;

@@ -51,8 +51,12 @@ type TicketRow = {
 };
 
 const emptyExtraction: TicketExtraction = {
+  documentType: 'ticket',
   vendor: '',
   ticketNumber: '',
+  invoiceNumber: '',
+  purchaseOrder: '',
+  jobNumber: '',
   date: '',
   weight: '',
   amount: '',
@@ -64,6 +68,9 @@ const acceptedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const fields: { key: FieldKey; label: string; short: string }[] = [
   { key: 'vendor', label: 'Vendor', short: 'Vendor' },
   { key: 'ticketNumber', label: 'Ticket no.', short: 'Ticket no.' },
+  { key: 'invoiceNumber', label: 'Invoice no.', short: 'Invoice no.' },
+  { key: 'purchaseOrder', label: 'Purchase Order', short: 'PO' },
+  { key: 'jobNumber', label: 'Job Number', short: 'Job no.' },
   { key: 'date', label: 'Date', short: 'Date' },
   { key: 'weight', label: 'Weight', short: 'Weight' },
   { key: 'amount', label: 'Amount', short: 'Amount' },
@@ -360,9 +367,9 @@ function Home() {
   }, [rows]);
 
   const exportCsv = useCallback(() => {
-    const header = ['Vendor', 'Ticket number', 'Date', 'Weight', 'Amount', 'Description', 'Waste Type', 'Source file', 'Status'];
+    const header = ['Document type', 'Vendor', 'Ticket number', 'Invoice number', 'Purchase Order', 'Job Number', 'Date', 'Weight', 'Amount', 'Description', 'Waste Type', 'Source file', 'Status'];
     const csvValue = (value: string) => `"${value.replaceAll('"', '""')}"`;
-    const body = rows.map((row) => [...fields.map((field) => row.extraction[field.key]), row.fileName, row.status].map(csvValue).join(','));
+    const body = rows.map((row) => [row.extraction.documentType, ...fields.map((field) => row.extraction[field.key]), row.fileName, row.status].map(csvValue).join(','));
     const blob = new Blob([[header.map(csvValue).join(','), ...body].join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

@@ -32,8 +32,12 @@ export const ExtractTicketBody = zod.object({
 })
 
 export const ExtractTicketResponse = zod.object({
+  "documentType": zod.enum(['ticket', 'invoice']).describe('Deterministic document classification.'),
   "vendor": zod.string(),
   "ticketNumber": zod.string(),
+  "invoiceNumber": zod.string(),
+  "purchaseOrder": zod.string(),
+  "jobNumber": zod.string(),
   "date": zod.string(),
   "weight": zod.string(),
   "amount": zod.string(),

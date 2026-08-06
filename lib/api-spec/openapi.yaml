@@ -84,9 +84,21 @@ components:
     TicketExtraction:
       type: object
       properties:
+        documentType:
+          type: string
+          enum:
+            - ticket
+            - invoice
+          description: Deterministic document classification.
         vendor:
           type: string
         ticketNumber:
+          type: string
+        invoiceNumber:
+          type: string
+        purchaseOrder:
+          type: string
+        jobNumber:
           type: string
         date:
           type: string
@@ -100,8 +112,12 @@ components:
           type: string
           description: Deterministic classification based on the extracted vendor.
       required:
+        - documentType
         - vendor
         - ticketNumber
+        - invoiceNumber
+        - purchaseOrder
+        - jobNumber
         - date
         - weight
         - amount

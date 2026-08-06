@@ -8,5 +8,6 @@
 
 export * from './healthStatus';
 export * from './ticketExtraction';
+export * from './ticketExtractionDocumentType';
 export * from './ticketExtractionInput';
 export * from './ticketExtractionInputMediaType';

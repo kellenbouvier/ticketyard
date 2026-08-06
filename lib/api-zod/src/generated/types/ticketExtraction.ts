@@ -5,10 +5,16 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { TicketExtractionDocumentType } from './ticketExtractionDocumentType';
 
 export interface TicketExtraction {
+  /** Deterministic document classification. */
+  documentType: TicketExtractionDocumentType;
   vendor: string;
   ticketNumber: string;
+  invoiceNumber: string;
+  purchaseOrder: string;
+  jobNumber: string;
   date: string;
   weight: string;
   amount: string;

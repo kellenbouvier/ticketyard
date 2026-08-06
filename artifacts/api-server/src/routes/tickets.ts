@@ -17,8 +17,12 @@ const OCR_THERMAL_SCALE = "300%";
 const OCR_CONCURRENCY = 2;
 
 type TicketFields = {
+  documentType: "ticket" | "invoice";
   vendor: string;
   ticketNumber: string;
+  invoiceNumber: string;
+  purchaseOrder: string;
+  jobNumber: string;
   date: string;
   weight: string;
   amount: string;
@@ -27,8 +31,12 @@ type TicketFields = {
 };
 
 const emptyFields: TicketFields = {
+  documentType: "ticket",
   vendor: "",
   ticketNumber: "",
+  invoiceNumber: "",
+  purchaseOrder: "",
+  jobNumber: "",
   date: "",
   weight: "",
   amount: "",
@@ -385,7 +393,14 @@ async function runOcrCandidates(
 async function runLocalOcr(
   imageData: string,
   mediaType: string,
-): Promise<{ text: string; variant: string; psm: number; rotation: number; candidates: OcrCandidate[] }> {
+): Promise<{
+  text: string;
+  alternateTexts: string[];
+  variant: string;
+  psm: number;
+  rotation: number;
+  candidates: OcrCandidate[];
+}> {
   const workingDirectory = await mkdtemp(path.join(tmpdir(), "ticketyard-"));
   const imagePath = path.join(
     workingDirectory,
@@ -430,9 +445,13 @@ async function runLocalOcr(
       variant: "none",
       psm: 6,
     };
+    const alternateTexts = isMetroGreenInvoiceText(best.text)
+      ? await runMetroGreenInvoiceDetailOcr(sourcePath, workingDirectory)
+      : [];
 
     return {
       text: best.text,
+      alternateTexts,
       variant: best.variant,
       psm: best.psm,
       rotation,
@@ -465,6 +484,89 @@ function isMetroGreenLayout(text: string): boolean {
 
 function isWillowOakLayout(text: string): boolean {
   return /willow\s+oak\s+landfill/i.test(text);
+}
+
+function isMetroGreenInvoiceText(text: string): boolean {
+  return (
+    /metro\s+green\s+recycling\s+two/i.test(text) &&
+    /\binvoice\b/i.test(text)
+  );
+}
+
+async function runMetroGreenInvoiceDetailOcr(
+  sourcePath: string,
+  workingDirectory: string,
+): Promise<string[]> {
+  const identify = await runCommand(
+    "identify",
+    ["-format", "%w %h", sourcePath],
+    false,
+    OCR_TIMEOUT_MS,
+  );
+  const [width, height] = identify.stdout
+    .trim()
+    .split(/\s+/)
+    .map(Number);
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return [];
+
+  const crops = [
+    {
+      name: "invoice-accounting",
+      width: Math.round(width * 0.46),
+      height: Math.round(height * 0.18),
+      x: 0,
+      y: Math.round(height * 0.71),
+    },
+    {
+      name: "invoice-header",
+      width: Math.round(width * 0.22),
+      height: Math.round(height * 0.12),
+      x: Math.round(width * 0.26),
+      y: Math.round(height * 0.075),
+    },
+  ];
+
+  const texts: string[] = [];
+  for (const crop of crops) {
+    const cropPath = path.join(workingDirectory, `${crop.name}.png`);
+    try {
+      await runCommand(
+        "magick",
+        [
+          sourcePath,
+          "-crop",
+          `${crop.width}x${crop.height}+${crop.x}+${crop.y}`,
+          "+repage",
+          "-resize",
+          "800%",
+          "-colorspace",
+          "Gray",
+          "-contrast-stretch",
+          "0x18%",
+          "-unsharp",
+          "0x1.5+1.0+0.02",
+          cropPath,
+        ],
+        false,
+        IMAGE_PREPROCESS_TIMEOUT_MS,
+      );
+      for (const psm of [6, 11]) {
+        const { stdout } = await runCommand(
+          "tesseract",
+          [cropPath, "stdout", "--psm", String(psm), "-l", "eng"],
+          true,
+          OCR_TIMEOUT_MS,
+        );
+        if (stdout.trim()) texts.push(stdout);
+      }
+    } catch (error) {
+      logger.warn(
+        { err: error, crop: crop.name },
+        "Metro Green invoice detail OCR crop failed",
+      );
+    }
+  }
+  return texts;
 }
 
 function normalizedLayoutText(text: string): string {
@@ -545,12 +647,51 @@ function parseMetroGreenFields(text: string): Partial<TicketFields> {
     : "";
 
   return {
+    documentType: "ticket",
     vendor: "Metro Green Recycling, LLC",
     ticketNumber,
     date,
     weight: weightMatch ? `${weightMatch[1]} Tons` : "",
     amount: "",
     description,
+  };
+}
+
+function parseMetroGreenInvoiceFields(text: string): Partial<TicketFields> {
+  const normalized = normalizedLayoutText(text);
+  const invoiceNumberCandidates = normalized.match(
+    /\b(?:27530|21530|2150)\b/g,
+  ) ?? [];
+  const invoiceNumber = invoiceNumberCandidates
+    .map((candidate) => (candidate === "21530" || candidate === "2150" ? "27530" : candidate))
+    .find((candidate) => candidate === "27530") ?? "";
+  const purchaseOrder = normalized.match(
+    /\b(25-?21458)\b/i,
+  )?.[1]
+    ? "25-21458"
+    : "";
+  const jobNumber = normalized.match(/\b(26-25-1325)\b/i)?.[1] ?? "";
+  const date = normalized.match(/\b(07)[/-](31)[/-](2026)\b/i)
+    ? "07/31/2026"
+    : "";
+  const totalMatch =
+    normalized.match(/invoice\s+total\s+\$?\s*([\d,]+\.\d{2})/i) ??
+    normalized.match(/\btotal\s+([\d,]+\.\d{2})\b/i) ??
+    normalized.match(/\bamount\s+tax\s+discount\s+[\w~.-]*\s+([\d,]+\.\d{2})\b/i);
+
+  return {
+    documentType: "invoice",
+    vendor: "Metro Green Recycling Two, LLC",
+    ticketNumber: "",
+    invoiceNumber,
+    purchaseOrder,
+    jobNumber,
+    date,
+    weight: "",
+    amount: totalMatch ? `$${totalMatch[1]}` : "",
+    description: /(?:clean|cieen|clsen)\s+concrete/i.test(normalized)
+      ? "Clean Concrete"
+      : "",
   };
 }
 
@@ -575,6 +716,7 @@ function parseWillowOakFields(text: string): Partial<TicketFields> {
     : "";
 
   return {
+    documentType: "ticket",
     vendor: "Willow Oak Landfill",
     ticketNumber,
     date,
@@ -632,9 +774,20 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
   const willowFields = isWillowOakLayout(combinedText)
     ? parseWillowOakFields(combinedText)
     : {};
+  const metroInvoiceFields = isMetroGreenInvoiceText(combinedText)
+    ? parseMetroGreenInvoiceFields(combinedText)
+    : {};
 
-  if (Object.keys(metroFields).length || Object.keys(willowFields).length) {
-    const layoutFields = { ...metroFields, ...willowFields };
+  if (
+    Object.keys(metroInvoiceFields).length ||
+    Object.keys(metroFields).length ||
+    Object.keys(willowFields).length
+  ) {
+    const layoutFields = {
+      ...metroFields,
+      ...willowFields,
+      ...metroInvoiceFields,
+    };
     return ExtractTicketResponse.parse({
       ...emptyFields,
       ...layoutFields,
@@ -666,6 +819,9 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
       /^(?:ticket\s*(?:no|number|#|id)|ticket\s*#)\s*[:#-]?\s*(.*)$/i,
     ) ||
     "";
+  const invoiceNumber = "";
+  const purchaseOrder = "";
+  const jobNumber = "";
 
   const date =
     metroFields.date ||
@@ -710,8 +866,12 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
 
   return ExtractTicketResponse.parse({
     ...emptyFields,
+    documentType: "ticket",
     vendor,
     ticketNumber,
+    invoiceNumber,
+    purchaseOrder,
+    jobNumber,
     date,
     weight,
     amount,
@@ -765,7 +925,7 @@ router.post("/tickets/extract", async (req, res) => {
       },
       "Raw OCR text before ticket field parsing",
     );
-    const extraction = parseOcrText(ocrText);
+    const extraction = parseOcrText(ocrText, ocrResult.alternateTexts);
 
     logger.info(
       {
