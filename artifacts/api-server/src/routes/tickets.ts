@@ -11,6 +11,7 @@ const router: IRouter = Router();
 const execFileAsync = promisify(execFile);
 const IMAGE_PREPROCESS_TIMEOUT_MS = 20_000;
 const OCR_TIMEOUT_MS = 8_000;
+const OCR_MAX_DIMENSION = 2400;
 const OCR_SCALE = "200%";
 const OCR_THERMAL_SCALE = "300%";
 const OCR_CONCURRENCY = 2;
@@ -59,6 +60,12 @@ type ImageVariantDefinition = {
   args: string[];
 };
 
+function isCommandTimeout(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const commandError = error as { killed?: unknown; code?: unknown };
+  return commandError.killed === true || commandError.code === "ETIMEDOUT";
+}
+
 async function runCommand(
   command: string,
   args: string[],
@@ -99,6 +106,8 @@ async function preprocessImage(
   await runCommand("magick", [
     imagePath,
     "-auto-orient",
+    "-resize",
+    `${OCR_MAX_DIMENSION}x${OCR_MAX_DIMENSION}>`,
     autoOrientedPath,
   ], false, IMAGE_PREPROCESS_TIMEOUT_MS);
 
@@ -132,6 +141,8 @@ async function preprocessImage(
       args: [
         "-resize",
         OCR_SCALE,
+        "-resize",
+        `${OCR_MAX_DIMENSION}x${OCR_MAX_DIMENSION}>`,
         "-colorspace",
         "Gray",
         "-contrast-stretch",
@@ -150,6 +161,8 @@ async function preprocessImage(
       args: [
         "-resize",
         OCR_THERMAL_SCALE,
+        "-resize",
+        `${OCR_MAX_DIMENSION}x${OCR_MAX_DIMENSION}>`,
         "-colorspace",
         "Gray",
         "-statistic",
@@ -171,6 +184,8 @@ async function preprocessImage(
       args: [
         "-resize",
         OCR_SCALE,
+        "-resize",
+        `${OCR_MAX_DIMENSION}x${OCR_MAX_DIMENSION}>`,
         "-colorspace",
         "Gray",
         "-contrast-stretch",
@@ -187,22 +202,50 @@ async function preprocessImage(
     },
   ];
 
+  const simplePrimaryDefinition: ImageVariantDefinition = {
+    name: "simple",
+    args: [
+      "-colorspace",
+      "Gray",
+      "-contrast-stretch",
+      "0x8%",
+      "-type",
+      "Grayscale",
+    ],
+  };
   const primaryDefinition = variantDefinitions[0];
   const primaryPath = path.join(
     workingDirectory,
     `${primaryDefinition.name}.png`,
   );
-  await runCommand(
-    "magick",
-    [sourcePath, ...primaryDefinition.args, primaryPath],
-    false,
-    IMAGE_PREPROCESS_TIMEOUT_MS,
-  );
+  let selectedPrimaryVariant = primaryDefinition.name;
+  try {
+    await runCommand(
+      "magick",
+      [sourcePath, ...primaryDefinition.args, primaryPath],
+      false,
+      IMAGE_PREPROCESS_TIMEOUT_MS,
+    );
+  } catch (error) {
+    if (!isCommandTimeout(error)) throw error;
+
+    logger.warn(
+      { timeoutMs: IMAGE_PREPROCESS_TIMEOUT_MS },
+      "Primary OCR preprocessing timed out; retrying with simple profile",
+    );
+    selectedPrimaryVariant = simplePrimaryDefinition.name;
+    await runCommand(
+      "magick",
+      [sourcePath, ...simplePrimaryDefinition.args, primaryPath],
+      false,
+      IMAGE_PREPROCESS_TIMEOUT_MS,
+    );
+  }
 
   return {
     sourcePath,
     rotation,
-    variantPaths: [{ name: primaryDefinition.name, path: primaryPath }],
+    variantPaths: [{ name: selectedPrimaryVariant, path: primaryPath }],
     fallbackDefinitions: variantDefinitions.slice(1),
   };
 }

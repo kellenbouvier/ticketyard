@@ -14,3 +14,9 @@ Local OCR preprocessing should treat the enhanced 2× image as the fast path and
 **Why:** The available ImageMagick/Tesseract runtime can be slow on large thermal variants, and deprecated ImageMagick options may be treated as command failures. Lazy fallback generation keeps normal ticket uploads responsive while preserving harder-photo recovery.
 
 **How to apply:** Prefer supported ImageMagick operators such as `-statistic Median 3x3`, constrain local OCR worker resources, and log selected variant, PSM, rotation, confidence, and recognized-word counts for diagnosis.
+
+Large source photos must be bounded before expensive ImageMagick filters, and the primary enhancement needs a simpler timeout retry rather than immediately failing the request.
+
+**Why:** Real iPhone JPEGs can be many times larger than demo fixtures; preprocessing can hit the fixed timeout even though the underlying image format is valid.
+
+**How to apply:** Resize the auto-oriented source to a roughly 2400px maximum dimension before enhancement, cap scaled variants as well, and retry timeout-killed primary preprocessing with a grayscale/contrast-only profile.
