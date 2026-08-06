@@ -1,1 +1,1 @@
-- [TicketYard AI provider](ticketyard-ai-provider.md) — managed Anthropic setup was unavailable, so the app uses a server-only user secret fallback.
+- [TicketYard OCR provider](ticketyard-ai-provider.md) — TicketYard uses local Tesseract OCR and deterministic field parsing; no paid AI provider is required.

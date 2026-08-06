@@ -23,13 +23,13 @@ TicketYard turns construction-industry ticket photos into reviewable, export-rea
 ## Where things live
 
 - `artifacts/ticket-yard` — the responsive TicketYard web workspace.
-- `artifacts/api-server/src/routes/tickets.ts` — server-side Claude image extraction route.
+- `artifacts/api-server/src/routes/tickets.ts` — server-side Tesseract OCR and ticket field parser.
 - `lib/api-spec/openapi.yaml` — source of truth for the ticket extraction contract.
 - `artifacts/ticket-yard/src/index.css` — TicketYard visual theme and responsive layout.
 
 ## Architecture decisions
 
-- Ticket images are converted to base64 in the browser and sent to the API; the Anthropic credential never reaches the client.
+- Ticket images are converted to base64 in the browser and sent to the API; the server runs local Tesseract OCR and does not require a paid AI provider.
 - Extraction returns only six string fields and blanks unreadable values instead of guessing.
 - The first demo keeps the register local to the browser so review, correction, retry, and CSV export stay immediate.
 
@@ -43,7 +43,7 @@ The user asked to preserve the existing modern construction/business-software di
 
 ## Gotchas
 
-- Keep `ANTHROPIC_API_KEY` server-side and never expose it through browser code.
+- Keep extraction local and free; do not add a paid AI-provider requirement for the class demonstration.
 - After changing `lib/api-spec/openapi.yaml`, run `pnpm --filter @workspace/api-spec run codegen`.
 
 ## Pointers

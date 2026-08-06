@@ -11,7 +11,7 @@ tags:
   - name: health
     description: Health operations
   - name: tickets
-    description: AI ticket extraction operations
+    description: Local OCR ticket extraction operations
 paths:
   /healthz:
     get:
@@ -31,7 +31,7 @@ paths:
       operationId: extractTicket
       tags: [tickets]
       summary: Extract ticket fields from an image
-      description: Sends a ticket image to the server-side AI extraction service and returns only the supported ticket fields.
+      description: Runs free local OCR on a ticket image and returns only the supported ticket fields.
       requestBody:
         required: true
         content:
@@ -47,8 +47,10 @@ paths:
                 $ref: "#/components/schemas/TicketExtraction"
         "400":
           description: Invalid image input
+        "422":
+          description: No readable text found
         "502":
-          description: Extraction service failed
+          description: Local OCR service failed
 components:
   schemas:
     HealthStatus:

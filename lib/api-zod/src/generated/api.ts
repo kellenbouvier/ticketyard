@@ -18,7 +18,7 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Sends a ticket image to the server-side AI extraction service and returns only the supported ticket fields.
+ * Runs free local OCR on a ticket image and returns only the supported ticket fields.
  * @summary Extract ticket fields from an image
  */
 

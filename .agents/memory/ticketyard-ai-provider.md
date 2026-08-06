@@ -3,8 +3,8 @@ name: TicketYard AI provider
 description: Provider decision for TicketYard's image extraction flow.
 ---
 
-TicketYard uses the user's `ANTHROPIC_API_KEY` on the server when the managed Anthropic AI integration is unavailable. The browser only calls the app's extraction route.
+TicketYard uses local Tesseract OCR on the API server followed by deterministic parsing of labeled ticket fields. The browser only calls the app's extraction route, and no paid AI provider or API key is required.
 
-**Why:** The managed provider setup required an account upgrade that the user declined, while the brief explicitly requires Claude-based extraction and the environment supports secure secret storage.
+**Why:** The user needed a working class demonstration without purchasing Anthropic credits. Tesseract is free, runs locally, and successfully reads the demo ticket while preserving the reviewable six-field contract.
 
-**How to apply:** Keep the key out of frontend code and logs. If the provider path changes, preserve the server-side proxy boundary and strict JSON-only extraction contract.
+**How to apply:** Keep extraction local and preserve the server-side route plus strict six-string-field contract. Extend the parser with label patterns before considering an external provider.

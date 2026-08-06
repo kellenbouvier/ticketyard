@@ -26,8 +26,8 @@ app.use(
   }),
 );
 app.use(cors());
-// Ticket images are sent one at a time as base64 so the API can keep the
-// extraction contract simple and never expose provider credentials to clients.
+// Ticket images are sent one at a time as base64 so the API can run local OCR
+// without exposing provider credentials or requiring a paid AI service.
 app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true }));
 

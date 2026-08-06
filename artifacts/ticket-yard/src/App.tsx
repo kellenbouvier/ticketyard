@@ -182,7 +182,7 @@ function Sidebar({ onNewBatch }: { onNewBatch: () => void }) {
       </div>
       <div className="mt-auto">
         <div className="mb-4 rounded-xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-accent)/.55)] p-3.5">
-          <div className="flex items-center gap-2 text-xs font-semibold"><ShieldCheck size={15} className="text-[hsl(var(--sidebar-primary))]" /> AI extraction</div>
+           <div className="flex items-center gap-2 text-xs font-semibold"><ShieldCheck size={15} className="text-[hsl(var(--sidebar-primary))]" /> Local OCR extraction</div>
           <div className="mt-2 text-[11px] leading-4 text-[hsl(var(--sidebar-foreground)/.55)]">Fields stay reviewable. You stay in control.</div>
           <div className="mt-3 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--sidebar-primary))]"><span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--sidebar-primary))]" /> Ready</div>
         </div>
@@ -386,7 +386,7 @@ function Home() {
           <div className="flex items-center gap-3">
             <div data-testid="status-api-health" className="hidden items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))] sm:flex">
               <span className={`h-2 w-2 rounded-full ${healthLoading ? 'bg-[hsl(var(--primary))]' : healthError ? 'bg-[hsl(var(--destructive))]' : 'bg-[hsl(var(--accent))]'}`} />
-              {healthLoading ? 'Checking service' : healthError ? 'Service unavailable' : 'AI service ready'}
+               {healthLoading ? 'Checking service' : healthError ? 'Service unavailable' : 'Local OCR ready'}
             </div>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[hsl(var(--accent))] text-xs font-bold text-[hsl(var(--accent-foreground))]">MR</div>
           </div>
@@ -418,7 +418,7 @@ function Home() {
                 <div className="mt-5 flex items-center gap-2 border-t border-[hsl(var(--border)/.75)] pt-4 text-[10px] font-semibold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]"><FileImage size={13} /> JPG, PNG, WEBP, GIF <span className="ml-auto font-mono-app normal-case tracking-normal">Up to 25 MB</span></div>
               </section>
               <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.42)] p-5">
-                <div className="flex items-start gap-3"><div className="mt-0.5 text-[hsl(var(--accent))]"><Sparkles size={17} /></div><div><h3 className="text-sm font-semibold">A second set of eyes, not a black box.</h3><p className="mt-1.5 text-xs leading-5 text-[hsl(var(--muted-foreground))]">AI suggests the fields. Your superintendent signs off. Every correction stays visible before the CSV leaves the yard.</p></div></div>
+                 <div className="flex items-start gap-3"><div className="mt-0.5 text-[hsl(var(--accent))]"><Sparkles size={17} /></div><div><h3 className="text-sm font-semibold">A fast first read, not a black box.</h3><p className="mt-1.5 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Local OCR suggests the fields. Your superintendent signs off. Every correction stays visible before the CSV leaves the yard.</p></div></div>
               </div>
             </div>
             <div className="min-w-0">

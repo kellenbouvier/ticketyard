@@ -1,76 +1,168 @@
 import { Router, type IRouter } from "express";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { ExtractTicketBody, ExtractTicketResponse } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+const execFileAsync = promisify(execFile);
+const OCR_TIMEOUT_MS = 45_000;
 
-const extractionPrompt = `You are extracting data from construction-industry paperwork.
-Read the provided ticket, receipt, scale ticket, weigh ticket, landfill ticket, transfer
-station ticket, demolition ticket, trucking ticket, hauling ticket, material delivery,
-scrap yard, metal recycling, Home Depot, Lowe's, or Supply House receipt.
+type TicketFields = {
+  vendor: string;
+  ticketNumber: string;
+  date: string;
+  weight: string;
+  amount: string;
+  description: string;
+};
 
-Return ONLY one JSON object with exactly these string fields:
-{"vendor":"","ticketNumber":"","date":"","weight":"","amount":"","description":""}
+const emptyFields: TicketFields = {
+  vendor: "",
+  ticketNumber: "",
+  date: "",
+  weight: "",
+  amount: "",
+  description: "",
+};
 
-Copy values only when they are visibly present and readable. If a field is missing,
-unclear, or ambiguous, return an empty string for that field. Never infer, estimate,
-normalize, or hallucinate a value. Preserve the document's visible formatting for
-dates, weights, and amounts where practical. No markdown, explanation, or code fences.`;
-
-function extractTextContent(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "";
-  const content = (payload as { content?: unknown }).content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .filter(
-      (block): block is { type: "text"; text: string } =>
-        typeof block === "object" &&
-        block !== null &&
-        (block as { type?: unknown }).type === "text" &&
-        typeof (block as { text?: unknown }).text === "string",
-    )
-    .map((block) => block.text)
-    .join("\n");
+function extensionForMediaType(mediaType: string): string {
+  if (mediaType === "image/png") return ".png";
+  if (mediaType === "image/webp") return ".webp";
+  if (mediaType === "image/gif") return ".gif";
+  return ".jpg";
 }
 
-function parseExtraction(text: string) {
-  const cleaned = text
-    .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-  const objectStart = cleaned.indexOf("{");
-  const objectEnd = cleaned.lastIndexOf("}");
-  if (objectStart < 0 || objectEnd <= objectStart) {
-    throw new Error("Claude did not return a JSON object");
-  }
+async function runLocalOcr(
+  imageData: string,
+  mediaType: string,
+): Promise<string> {
+  const workingDirectory = await mkdtemp(path.join(tmpdir(), "ticketyard-"));
+  const imagePath = path.join(
+    workingDirectory,
+    `ticket${extensionForMediaType(mediaType)}`,
+  );
 
-  const parsed: unknown = JSON.parse(cleaned.slice(objectStart, objectEnd + 1));
+  try {
+    await writeFile(imagePath, Buffer.from(imageData, "base64"));
+    const { stdout } = await execFileAsync(
+      "tesseract",
+      [imagePath, "stdout", "--psm", "6"],
+      {
+        timeout: OCR_TIMEOUT_MS,
+        maxBuffer: 2 * 1024 * 1024,
+      },
+    );
+    return stdout;
+  } finally {
+    await rm(workingDirectory, { recursive: true, force: true });
+  }
+}
+
+function cleanOcrLines(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function valueFromLine(lines: string[], pattern: RegExp): string {
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(pattern);
+    if (!match) continue;
+
+    const inlineValue = match[1]?.trim().replace(/^[:#-]\s*/, "");
+    if (inlineValue) return inlineValue;
+    const nextLine = lines[index + 1]?.trim();
+    if (nextLine && !/^[A-Z][A-Z\s#-]{2,}:/.test(nextLine)) {
+      return nextLine;
+    }
+  }
+  return "";
+}
+
+function firstMatch(lines: string[], pattern: RegExp): string {
+  for (const line of lines) {
+    const match = line.match(pattern);
+    if (match?.[0]) return match[0].trim();
+  }
+  return "";
+}
+
+function looksLikeDocumentHeading(line: string): boolean {
+  return /^(?:ticket|weighmaster|scale|date|weight|net|total|amount|description|material|load|customer|vendor|hauler)\b/i.test(
+    line,
+  );
+}
+
+function parseOcrText(text: string): TicketFields {
+  const lines = cleanOcrLines(text);
+  if (!lines.length) return emptyFields;
+
+  const vendor =
+    valueFromLine(
+      lines,
+      /^(?:vendor|company|hauler|supplier|facility|customer|from)\s*[:#-]?\s*(.*)$/i,
+    ) ||
+    lines.find(
+      (line) =>
+        line.length >= 3 &&
+        !looksLikeDocumentHeading(line) &&
+        !/^\d[\d\s./-]*$/.test(line),
+    ) ||
+    "";
+
+  const ticketNumber =
+    valueFromLine(
+      lines,
+      /^(?:ticket\s*(?:no|number|#|id)|ticket\s*#)\s*[:#-]?\s*(.*)$/i,
+    ) ||
+    firstMatch(lines, /(?:ticket|load|manifest|reference)\s*(?:no|number|#|id)?\s*[:#-]?\s*[A-Z0-9][A-Z0-9-]*/i);
+
+  const date =
+    valueFromLine(
+      lines,
+      /^(?:ticket\s+)?date\s*[:#-]?\s*(.*)$/i,
+    ) ||
+    firstMatch(
+      lines,
+      /\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{2,4})\b/i,
+    );
+
+  const weight =
+    valueFromLine(
+      lines,
+      /^(?:(?:net|gross|tare)\s+)?weight(?:\s+(?:lbs?|pounds?|tons?|tonnes?|kg|yards?))?\s*[:#-]?\s*(.*)$/i,
+    ) ||
+    firstMatch(
+      lines,
+      /\b\d[\d,.]*\s*(?:tons?|tonnes?|lbs?|pounds?|kg|yds?|yards?)\b/i,
+    );
+
+  const amount =
+    valueFromLine(
+      lines,
+      /^(?:(?:total|net)\s+)?(?:amount|charge|price|due|cost|total)\s*[:#-]?\s*(.*)$/i,
+    ) ||
+    firstMatch(lines, /\$\s*\d[\d,.]*(?:\.\d{2})?|\b(?:total|amount|due)\s*[:#-]?\s*\d[\d,.]*(?:\.\d{2})?/i);
+
+  const description =
+    valueFromLine(
+      lines,
+      /^(?:description|material|materials|load|contents|waste\s+type|product)\s*[:#-]?\s*(.*)$/i,
+    ) || "";
+
   return ExtractTicketResponse.parse({
-    vendor:
-      typeof (parsed as Record<string, unknown>).vendor === "string"
-        ? (parsed as Record<string, string>).vendor
-        : "",
-    ticketNumber:
-      typeof (parsed as Record<string, unknown>).ticketNumber === "string"
-        ? (parsed as Record<string, string>).ticketNumber
-        : "",
-    date:
-      typeof (parsed as Record<string, unknown>).date === "string"
-        ? (parsed as Record<string, string>).date
-        : "",
-    weight:
-      typeof (parsed as Record<string, unknown>).weight === "string"
-        ? (parsed as Record<string, string>).weight
-        : "",
-    amount:
-      typeof (parsed as Record<string, unknown>).amount === "string"
-        ? (parsed as Record<string, string>).amount
-        : "",
-    description:
-      typeof (parsed as Record<string, unknown>).description === "string"
-        ? (parsed as Record<string, string>).description
-        : "",
+    ...emptyFields,
+    vendor,
+    ticketNumber,
+    date,
+    weight,
+    amount,
+    description,
   });
 }
 
@@ -78,14 +170,6 @@ router.post("/tickets/extract", async (req, res) => {
   const parsedBody = ExtractTicketBody.safeParse(req.body);
   if (!parsedBody.success) {
     res.status(400).json({ error: "Please provide a supported ticket image." });
-    return;
-  }
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    res
-      .status(503)
-      .json({ error: "Ticket extraction is not configured on the server." });
     return;
   }
 
@@ -97,79 +181,38 @@ router.post("/tickets/extract", async (req, res) => {
         fileName,
         mediaType,
         imageBytesBase64: imageData.length,
-        apiKeyConfigured: Boolean(apiKey),
-        model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
+        ocrEngine: "tesseract",
       },
-      "Starting Anthropic ticket extraction",
+      "Starting local ticket OCR",
     );
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
-        max_tokens: 8192,
-        system: extractionPrompt,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: { type: "base64", media_type: mediaType, data: imageData },
-              },
-              {
-                type: "text",
-                text: `Extract the six fields from this ticket image. The source file is "${fileName}".`,
-              },
-            ],
-          },
-        ],
-      }),
-    });
 
-    const responseText = await response.text();
-    let payload: unknown;
-    try {
-      payload = JSON.parse(responseText);
-    } catch {
-      payload = { raw: responseText };
-    }
-    if (!response.ok) {
-      logger.error(
-        {
-          status: response.status,
-          statusText: response.statusText,
-          fileName,
-          anthropicError: payload,
-        },
-        "Anthropic ticket extraction failed",
-      );
-      const providerMessage =
-        payload &&
-        typeof payload === "object" &&
-        "error" in payload &&
-        payload.error &&
-        typeof payload.error === "object" &&
-        "message" in payload.error &&
-        typeof payload.error.message === "string"
-          ? payload.error.message
-          : "The ticket could not be read. Please retry.";
-      const isCreditError =
-        providerMessage.toLowerCase().includes("credit balance") ||
-        providerMessage.toLowerCase().includes("purchase credits");
-      res.status(isCreditError ? 402 : 502).json({ error: providerMessage });
+    const ocrText = await runLocalOcr(imageData, mediaType);
+    const extraction = parseOcrText(ocrText);
+
+    logger.info(
+      {
+        fileName,
+        ocrCharacters: ocrText.length,
+        fieldsFound: Object.values(extraction).filter(Boolean).length,
+      },
+      "Local ticket OCR completed",
+    );
+
+    if (!ocrText.trim()) {
+      res.status(422).json({
+        error:
+          "No readable text was found in this image. Try a sharper, brighter ticket photo.",
+      });
       return;
     }
 
-    const result = parseExtraction(extractTextContent(payload));
-    res.json(result);
+    res.json(extraction);
   } catch (error) {
-    logger.error({ err: error, fileName }, "Ticket extraction request failed");
-    res.status(502).json({ error: "The ticket could not be read. Please retry." });
+    logger.error({ err: error, fileName }, "Local ticket OCR failed");
+    res.status(502).json({
+      error:
+        "The local OCR reader could not process this image. Try a JPG or PNG ticket photo.",
+    });
   }
 });
 
