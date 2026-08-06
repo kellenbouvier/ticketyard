@@ -92,6 +92,16 @@ router.post("/tickets/extract", async (req, res) => {
   const { fileName, mediaType, imageData } = parsedBody.data;
 
   try {
+    logger.info(
+      {
+        fileName,
+        mediaType,
+        imageBytesBase64: imageData.length,
+        apiKeyConfigured: Boolean(apiKey),
+        model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
+      },
+      "Starting Anthropic ticket extraction",
+    );
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -121,13 +131,37 @@ router.post("/tickets/extract", async (req, res) => {
       }),
     });
 
-    const payload: unknown = await response.json();
+    const responseText = await response.text();
+    let payload: unknown;
+    try {
+      payload = JSON.parse(responseText);
+    } catch {
+      payload = { raw: responseText };
+    }
     if (!response.ok) {
       logger.error(
-        { status: response.status, fileName },
+        {
+          status: response.status,
+          statusText: response.statusText,
+          fileName,
+          anthropicError: payload,
+        },
         "Anthropic ticket extraction failed",
       );
-      res.status(502).json({ error: "The ticket could not be read. Please retry." });
+      const providerMessage =
+        payload &&
+        typeof payload === "object" &&
+        "error" in payload &&
+        payload.error &&
+        typeof payload.error === "object" &&
+        "message" in payload.error &&
+        typeof payload.error.message === "string"
+          ? payload.error.message
+          : "The ticket could not be read. Please retry.";
+      const isCreditError =
+        providerMessage.toLowerCase().includes("credit balance") ||
+        providerMessage.toLowerCase().includes("purchase credits");
+      res.status(isCreditError ? 402 : 502).json({ error: providerMessage });
       return;
     }
 

@@ -81,6 +81,18 @@ function getSupportedMediaType(file: File): TicketExtractionInput['mediaType'] |
   return null;
 }
 
+function readFileAsBase64(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? '');
+      resolve(result.includes(',') ? result.split(',')[1] : result);
+    };
+    reader.onerror = () => reject(new Error('Could not read this image file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 const samplePreview = (name: string, accent: string) =>
   `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="700" height="460" viewBox="0 0 700 460">
@@ -225,7 +237,11 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
                 <button data-testid={`button-preview-${row.id}`} onClick={() => onPreview(row)} className="group relative h-10 w-12 shrink-0 overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
                   <img src={row.preview} alt="" className="h-full w-full object-cover transition group-hover:scale-105" /><span className="absolute inset-0 flex items-center justify-center bg-[hsl(var(--foreground)/.48)] opacity-0 transition group-hover:opacity-100"><ZoomIn size={14} className="text-[hsl(var(--card))]" /></span>
                 </button>
-                <div className="min-w-0"><div className="truncate text-xs font-semibold">{row.fileName}</div><div className="mt-1"><StatusPill status={row.status} /></div></div>
+                <div className="min-w-0">
+                  <div className="truncate text-xs font-semibold">{row.fileName}</div>
+                  <div className="mt-1"><StatusPill status={row.status} /></div>
+                  {row.error && <div title={row.error} className="mt-1 max-w-[150px] truncate text-[10px] leading-4 text-[hsl(var(--destructive))]">{row.error}</div>}
+                </div>
               </div>
               {fields.map((field) => <input data-testid={`input-${field.key}-${row.id}`} key={field.key} aria-label={`${field.label} for ${row.fileName}`} disabled={row.status === 'Reading'} className="ticket-field" value={row.extraction[field.key]} placeholder="—" onChange={(event) => onChange(row.id, field.key, event.target.value)} />)}
               <div className="flex items-center justify-end gap-0.5">
@@ -266,31 +282,18 @@ function Home() {
     const row: TicketRow = { id, fileName: file.name, preview, status: 'Reading', extraction: emptyExtraction };
     setRows((current) => [row, ...current]);
     announce(`Reading ${file.name}…`, 'info');
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result ?? '');
-      const imageData = result.includes(',') ? result.split(',')[1] : result;
-      const payload: TicketExtractionInput = {
-        fileName: file.name,
-        mediaType,
-        imageData,
-      };
-      extractMutation.mutate({ data: payload }, {
-        onSuccess: (extraction) => {
-          setRows((current) => current.map((item) => item.id === id ? { ...item, extraction, status: 'Processed' } : item));
-          announce(`${file.name} processed. Give the fields a quick look.`);
-        },
-        onError: () => {
-          setRows((current) => current.map((item) => item.id === id ? { ...item, status: 'Failed', error: 'Extraction did not complete. Check the image and try again.' } : item));
-          announce(`${file.name} needs another look. Retry when ready.`, 'error');
-        },
+    try {
+      const imageData = await readFileAsBase64(file);
+      const extraction = await extractMutation.mutateAsync({
+        data: { fileName: file.name, mediaType, imageData },
       });
-    };
-    reader.onerror = () => {
-      setRows((current) => current.map((item) => item.id === id ? { ...item, status: 'Failed', error: 'Could not read this image file.' } : item));
-      announce(`Could not read ${file.name}.`, 'error');
-    };
-    reader.readAsDataURL(file);
+      setRows((current) => current.map((item) => item.id === id ? { ...item, extraction, status: 'Processed' } : item));
+      announce(`${file.name} processed. Give the fields a quick look.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Extraction did not complete. Check the image and try again.';
+      setRows((current) => current.map((item) => item.id === id ? { ...item, status: 'Failed', error: message } : item));
+      announce(`${file.name}: ${message}`, 'error');
+    }
   }, [announce, extractMutation]);
 
   const handleFiles = useCallback((files: FileList | File[]) => {
@@ -302,32 +305,27 @@ function Home() {
     if (!row) return;
     setRows((current) => current.map((item) => item.id === id ? { ...item, status: 'Reading', error: undefined } : item));
     announce(`Retrying ${row.fileName}…`, 'info');
-    fetch(row.preview).then((response) => response.blob()).then((blob) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = String(reader.result ?? '');
-        extractMutation.mutate({
+    void (async () => {
+      try {
+        const response = await fetch(row.preview);
+        if (!response.ok) throw new Error('The source image is no longer available.');
+        const blob = await response.blob();
+        const imageData = await readFileAsBase64(blob);
+        const extraction = await extractMutation.mutateAsync({
           data: {
             fileName: row.fileName,
             mediaType: getSupportedMediaType(new File([blob], row.fileName, { type: blob.type })) ?? 'image/jpeg',
-            imageData: result.includes(',') ? result.split(',')[1] : result,
-          },
-        }, {
-          onSuccess: (extraction) => {
-            setRows((current) => current.map((item) => item.id === id ? { ...item, extraction, status: 'Processed', error: undefined } : item));
-            announce(`${row.fileName} processed on retry.`);
-          },
-          onError: () => {
-            setRows((current) => current.map((item) => item.id === id ? { ...item, status: 'Failed', error: 'Extraction did not complete. Check the image and try again.' } : item));
-            announce(`Retry failed for ${row.fileName}.`, 'error');
+            imageData,
           },
         });
-      };
-      reader.readAsDataURL(blob);
-    }).catch(() => {
-      setRows((current) => current.map((item) => item.id === id ? { ...item, status: 'Failed' } : item));
-      announce(`Retry failed for ${row.fileName}.`, 'error');
-    });
+        setRows((current) => current.map((item) => item.id === id ? { ...item, extraction, status: 'Processed', error: undefined } : item));
+        announce(`${row.fileName} processed on retry.`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Extraction did not complete. Check the image and try again.';
+        setRows((current) => current.map((item) => item.id === id ? { ...item, status: 'Failed', error: message } : item));
+        announce(`Retry failed for ${row.fileName}: ${message}`, 'error');
+      }
+    })();
   }, [announce, extractMutation, rows]);
 
   const updateField = useCallback((id: string, field: FieldKey, value: string) => {
