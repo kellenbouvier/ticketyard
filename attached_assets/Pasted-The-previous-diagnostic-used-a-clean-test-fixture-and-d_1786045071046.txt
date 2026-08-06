@@ -1,0 +1,56 @@
+The previous diagnostic used a clean test fixture and did not reproduce the problem with my actual tickets. These two attached real tickets prove that OCR completes, but the parser assigns the wrong text to the fields.
+
+Do not redesign the UI or replace the OCR pipeline.
+
+Use IMG_3279.jpeg and IMG_3280.jpeg as permanent real-world parser fixtures.
+
+Expected result for IMG_3279.jpeg:
+
+Vendor: Metro Green Recycling, LLC
+Ticket Number: 1362560
+Date: 07/02/2026
+Weight: 14.85 Tons
+Amount: blank unless a real total dollar amount is printed
+Description: Concrete w/ Wire or Rebar
+Waste Type: Inert Landfill
+
+Expected result for IMG_3280.jpeg:
+
+Vendor: Willow Oak Landfill
+Ticket Number: 944952
+Date: 06/22/2026
+Weight: 4.49 Tons
+Amount: $125.99
+Description: 2000T-C&D - Mixed
+Waste Type: Landfill
+
+The current incorrect values include labels and unrelated nearby text, such as:
+
+Vendor: 872
+Ticket Number: Loads
+Amount: $ Line Tot
+Description: s: 6
+
+and:
+
+Vendor: 5 i i
+Ticket Number: Ticket Date
+Amount: text from the Tax heading
+Description: LD% Qty UOM Rate
+
+This proves the problem is field parsing, not the API response or React rendering.
+
+Please:
+
+1. Inspect the actual OCR text produced for both attached images.
+2. Improve the existing parser so it recognizes these real vendor layouts.
+3. Prefer explicit labels and vendor-specific layout rules over taking arbitrary nearby words.
+4. Never return field labels such as “Ticket Date,” “Loads,” “Line Total,” “Tax,” “Qty,” “UOM,” or “Rate” as extracted values.
+5. Return an empty string when a real value cannot be confidently found.
+6. Preserve the existing preprocessing, UI, API structure, and manual editing.
+7. Add automated regression tests using both images and the expected values above.
+8. Run both real images through the finished app and report the displayed values for every column.
+
+Do not claim success using a generated or substitute ticket. Verification must use IMG_3279.jpeg and IMG_3280.jpeg.
+
+Do not republish automatically.
