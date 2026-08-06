@@ -1,0 +1,1 @@
+- [TicketYard AI provider](ticketyard-ai-provider.md) — managed Anthropic setup was unavailable, so the app uses a server-only user secret fallback.

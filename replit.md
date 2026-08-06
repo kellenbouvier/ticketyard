@@ -1,6 +1,6 @@
-# [Project name]
+# TicketYard
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+TicketYard turns construction-industry ticket photos into reviewable, export-ready records.
 
 ## Run & Operate
 
@@ -22,23 +22,29 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/ticket-yard` — the responsive TicketYard web workspace.
+- `artifacts/api-server/src/routes/tickets.ts` — server-side Claude image extraction route.
+- `lib/api-spec/openapi.yaml` — source of truth for the ticket extraction contract.
+- `artifacts/ticket-yard/src/index.css` — TicketYard visual theme and responsive layout.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Ticket images are converted to base64 in the browser and sent to the API; the Anthropic credential never reaches the client.
+- Extraction returns only six string fields and blanks unreadable values instead of guessing.
+- The first demo keeps the register local to the browser so review, correction, retry, and CSV export stay immediate.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Users can upload or drag in multiple ticket images, review AI-extracted vendor, ticket number, date, weight, amount, and description fields, correct values manually, retry failed reads, add manual rows, preview source images, see live totals, and export the register to CSV.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+The user asked to preserve the existing modern construction/business-software direction rather than redesigning the product.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Keep `ANTHROPIC_API_KEY` server-side and never expose it through browser code.
+- After changing `lib/api-spec/openapi.yaml`, run `pnpm --filter @workspace/api-spec run codegen`.
 
 ## Pointers
 
