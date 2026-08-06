@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: tickets
+    description: AI ticket extraction operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /tickets/extract:
+    post:
+      operationId: extractTicket
+      tags: [tickets]
+      summary: Extract ticket fields from an image
+      description: Sends a ticket image to the server-side AI extraction service and returns only the supported ticket fields.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketExtractionInput"
+      responses:
+        "200":
+          description: Extracted ticket fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketExtraction"
+        "400":
+          description: Invalid image input
+        "502":
+          description: Extraction service failed
 components:
   schemas:
     HealthStatus:
@@ -33,4 +58,47 @@ components:
           type: string
       required:
         - status
+    TicketExtractionInput:
+      type: object
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+        mediaType:
+          type: string
+          enum:
+            - image/jpeg
+            - image/png
+            - image/webp
+            - image/gif
+        imageData:
+          type: string
+          minLength: 1
+          description: Base64-encoded image bytes without a data URL prefix
+      required:
+        - fileName
+        - mediaType
+        - imageData
+    TicketExtraction:
+      type: object
+      properties:
+        vendor:
+          type: string
+        ticketNumber:
+          type: string
+        date:
+          type: string
+        weight:
+          type: string
+        amount:
+          type: string
+        description:
+          type: string
+      required:
+        - vendor
+        - ticketNumber
+        - date
+        - weight
+        - amount
+        - description
 

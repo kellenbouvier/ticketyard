@@ -1,0 +1,188 @@
+TicketYard AI Development Prompt
+You are taking over development of an existing project called TicketYard.
+Your goal is NOT to redesign the app.
+Your goal is to repair, finish, and polish it into a working demo.
+The user is not a programmer, so make all code changes yourself and explain only what is necessary.
+Project Purpose
+TicketYard is an AI-powered ticket scanning application for the demolition, construction, trucking, landfill, and scrap recycling industries.
+A superintendent or project manager should be able to:
+Open the website.
+Upload one or multiple ticket photos.
+Have AI automatically read each ticket.
+Populate a table.
+Allow manual corrections.
+Export everything to CSV.
+The app should look professional enough to demo to a construction company.
+Existing Tech
+Frontend:
+HTML
+CSS
+Vanilla JavaScript
+Backend:
+Node.js
+Express
+AI:
+Anthropic Claude API
+The backend proxies API requests so the API key is never exposed.
+Current Problem
+The project partially works.
+The frontend loads.
+The backend starts.
+The API key loads.
+However image processing currently fails.
+The Browse Files button has broken multiple times during debugging because JavaScript structure was accidentally damaged.
+Repair everything.
+Do not introduce new bugs.
+Required Features
+Upload
+Users can:
+Browse Files
+Drag and drop images
+Upload multiple images
+Accepted image types:
+JPG
+JPEG
+PNG
+WEBP
+GIF
+Reject unsupported formats with a friendly error.
+AI Extraction
+Every uploaded ticket should be sent to Claude.
+Claude should extract ONLY:
+Vendor
+Ticket Number
+Date
+Weight
+Amount
+Description
+If a value cannot be read:
+Leave it blank.
+Never hallucinate.
+Never invent information.
+Ticket Types
+The AI should successfully recognize:
+Construction tickets
+Demolition tickets
+Landfill tickets
+Transfer station tickets
+Scale tickets
+Weigh tickets
+Scrap yard tickets
+Metal recycling tickets
+Trucking tickets
+Hauling tickets
+Material delivery tickets
+Retail receipts
+Home Depot
+Lowe's
+Supply House receipts
+Any similar construction industry paperwork
+Extraction Prompt
+Claude should be instructed to return ONLY JSON.
+Expected format:
+{
+  "vendor":"",
+  "ticketNumber":"",
+  "date":"",
+  "weight":"",
+  "amount":"",
+  "description":""
+}
+No markdown.
+No explanation.
+No code fences.
+Only JSON.
+Table
+Each uploaded ticket becomes one row.
+Columns:
+Image thumbnail
+Vendor
+Ticket Number
+Date
+Weight / Tonnage
+Amount
+Description
+Status
+Actions
+Image Preview
+Clicking the thumbnail should open a larger preview modal.
+Editing
+Every extracted field must remain editable.
+Users can manually correct anything.
+Status Badges
+Reading
+Processed
+Failed
+Manual
+Retry Button
+Each row should have a Retry button that reprocesses that ticket only.
+Delete Button
+Delete individual rows.
+Manual Entry
+Allow adding an empty row without uploading an image.
+Totals
+Display:
+Number of tickets
+Number with weight
+Total dollar amount
+Export
+Export everything to CSV.
+Include:
+Vendor
+Ticket Number
+Date
+Weight
+Amount
+Description
+Source File
+Status
+Error Handling
+If Claude fails:
+Display "Failed"
+Allow retry.
+Never crash the page.
+Never stop processing remaining tickets.
+UI
+Keep the existing design.
+Do NOT redesign.
+Improve only if necessary.
+Maintain a modern construction/business software appearance.
+Backend
+Keep Express.
+Keep environment variables.
+API key stays in .env.
+Never expose the API key.
+Code Quality
+Fix any JavaScript syntax errors.
+Fix broken event listeners.
+Fix broken Browse Files functionality.
+Fix upload logic.
+Fix API communication.
+Fix JSON parsing.
+Remove duplicate code.
+Remove broken code left from previous debugging.
+Ensure the application works end-to-end.
+Testing
+Before finishing:
+Verify:
+✅ Browse Files works
+✅ Drag & Drop works
+✅ Multiple upload works
+✅ Images reach backend
+✅ Backend reaches Claude
+✅ Claude returns JSON
+✅ JSON parses correctly
+✅ Table fills correctly
+✅ Retry works
+✅ Manual editing works
+✅ Export CSV works
+There should be no JavaScript console errors.
+Final Deliverable
+Return a fully working project.
+Do not leave placeholder code.
+Do not leave TODOs.
+Do not stop after finding the bug.
+Continue until the application functions as a polished demo.
+If package installations or configuration changes are required, make them.
+If the Claude API request format needs updating to match the latest Anthropic API, update it automatically.
+The end result should be a production-quality demo that a construction company could immediately test with real ticket photos.
