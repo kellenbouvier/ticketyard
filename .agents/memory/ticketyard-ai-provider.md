@@ -26,3 +26,9 @@ Waste Type is derived only after vendor parsing with deterministic name/category
 **Why:** The classification must be explainable and must not introduce another AI/provider dependency into the local OCR workflow.
 
 **How to apply:** Keep classification downstream of `vendor` extraction and preserve the shared response, editable register field, and CSV column together when adding future deterministic categories.
+
+Real ticket parsers need explicit layout branches when OCR emits table headings and fragmented header text; generic nearby-line fallbacks are unsafe.
+
+**Why:** The Metro Green and Willow Oak layouts produced valid OCR but caused labels such as `Loads`, `Ticket Date`, `Line Total`, and `Qty/UOM/Rate` to be selected as values.
+
+**How to apply:** Prefer vendor/layout signatures, validate candidate values, return blanks for uncertain fields, and keep real uploaded ticket fixtures in parser regression coverage.
