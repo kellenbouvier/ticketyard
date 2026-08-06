@@ -31,7 +31,7 @@ paths:
       operationId: extractTicket
       tags: [tickets]
       summary: Extract ticket fields from an image
-      description: Runs free local OCR on a ticket image and returns only the supported ticket fields.
+      description: Runs free local OCR on a ticket image and returns the supported ticket fields plus deterministic waste classification.
       requestBody:
         required: true
         content:
@@ -96,6 +96,9 @@ components:
           type: string
         description:
           type: string
+        wasteType:
+          type: string
+          description: Deterministic classification based on the extracted vendor.
       required:
         - vendor
         - ticketNumber
@@ -103,4 +106,5 @@ components:
         - weight
         - amount
         - description
+        - wasteType
 

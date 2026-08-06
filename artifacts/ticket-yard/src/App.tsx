@@ -57,6 +57,7 @@ const emptyExtraction: TicketExtraction = {
   weight: '',
   amount: '',
   description: '',
+  wasteType: '',
 };
 
 const acceptedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -67,6 +68,7 @@ const fields: { key: FieldKey; label: string; short: string }[] = [
   { key: 'weight', label: 'Weight', short: 'Weight' },
   { key: 'amount', label: 'Amount', short: 'Amount' },
   { key: 'description', label: 'Description', short: 'Description' },
+  { key: 'wasteType', label: 'Waste Type', short: 'Waste Type' },
 ];
 
 function getSupportedMediaType(file: File): TicketExtractionInput['mediaType'] | null {
@@ -226,13 +228,13 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
         <div className="flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))]"><span className="h-2 w-2 rounded-full bg-[hsl(var(--accent))]" /> Changes save locally</div>
       </div>
       <div className="overflow-x-auto">
-        <div className="ticket-table min-w-[950px]">
-          <div className="grid grid-cols-[180px_1.05fr_1.05fr_.85fr_.8fr_.82fr_1.3fr_112px] gap-3 bg-[hsl(var(--muted)/.45)] px-5 py-2.5 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">
+          <div className="ticket-table min-w-[1100px]">
+          <div className="grid grid-cols-[180px_1.05fr_1.05fr_.85fr_.8fr_.82fr_1.3fr_1fr_112px] gap-3 bg-[hsl(var(--muted)/.45)] px-5 py-2.5 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">
             <div>Source</div>{fields.map((field) => <div key={field.key}>{field.short}</div>)}<div className="text-right">Actions</div>
           </div>
           {rows.length === 0 && <div className="flex flex-col items-center justify-center px-6 py-20 text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--primary)/.14)] text-[hsl(var(--primary))]"><Inbox size={26} /></div><h3 className="mt-4 font-display text-lg font-semibold">Your register is clear</h3><p className="mt-1 max-w-xs text-sm text-[hsl(var(--muted-foreground))]">Drop a few ticket photos above and TicketYard will set up the first rows.</p></div>}
           {rows.map((row) => (
-            <div data-testid={`row-ticket-${row.id}`} key={row.id} className="ticket-table-row grid grid-cols-[180px_1.05fr_1.05fr_.85fr_.8fr_.82fr_1.3fr_112px] items-center gap-3 px-5 py-3 transition">
+            <div data-testid={`row-ticket-${row.id}`} key={row.id} className="ticket-table-row grid grid-cols-[180px_1.05fr_1.05fr_.85fr_.8fr_.82fr_1.3fr_1fr_112px] items-center gap-3 px-5 py-3 transition">
               <div className="flex min-w-0 items-center gap-2.5">
                 <button data-testid={`button-preview-${row.id}`} onClick={() => onPreview(row)} className="group relative h-10 w-12 shrink-0 overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
                   <img src={row.preview} alt="" className="h-full w-full object-cover transition group-hover:scale-105" /><span className="absolute inset-0 flex items-center justify-center bg-[hsl(var(--foreground)/.48)] opacity-0 transition group-hover:opacity-100"><ZoomIn size={14} className="text-[hsl(var(--card))]" /></span>
@@ -358,7 +360,7 @@ function Home() {
   }, [rows]);
 
   const exportCsv = useCallback(() => {
-    const header = ['Vendor', 'Ticket number', 'Date', 'Weight', 'Amount', 'Description', 'Source file', 'Status'];
+    const header = ['Vendor', 'Ticket number', 'Date', 'Weight', 'Amount', 'Description', 'Waste Type', 'Source file', 'Status'];
     const csvValue = (value: string) => `"${value.replaceAll('"', '""')}"`;
     const body = rows.map((row) => [...fields.map((field) => row.extraction[field.key]), row.fileName, row.status].map(csvValue).join(','));
     const blob = new Blob([[header.map(csvValue).join(','), ...body].join('\n')], { type: 'text/csv;charset=utf-8' });

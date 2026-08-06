@@ -139,7 +139,7 @@ export const getExtractTicketUrl = () => {
 }
 
 /**
- * Runs free local OCR on a ticket image and returns only the supported ticket fields.
+ * Runs free local OCR on a ticket image and returns the supported ticket fields plus deterministic waste classification.
  * @summary Extract ticket fields from an image
  */
 export const extractTicket = async (ticketExtractionInput: TicketExtractionInput, options?: Parameters<typeof customFetch>[1]): Promise<TicketExtraction> => {

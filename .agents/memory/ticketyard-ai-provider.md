@@ -20,3 +20,9 @@ Large source photos must be bounded before expensive ImageMagick filters, and th
 **Why:** Real iPhone JPEGs can be many times larger than demo fixtures; preprocessing can hit the fixed timeout even though the underlying image format is valid.
 
 **How to apply:** Resize the auto-oriented source to a roughly 2400px maximum dimension before enhancement, cap scaled variants as well, and retry timeout-killed primary preprocessing with a grayscale/contrast-only profile.
+
+Waste Type is derived only after vendor parsing with deterministic name/category rules; unknown or unmatched vendors remain blank.
+
+**Why:** The classification must be explainable and must not introduce another AI/provider dependency into the local OCR workflow.
+
+**How to apply:** Keep classification downstream of `vendor` extraction and preserve the shared response, editable register field, and CSV column together when adding future deterministic categories.

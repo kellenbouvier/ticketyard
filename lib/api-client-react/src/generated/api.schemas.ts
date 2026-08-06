@@ -37,5 +37,7 @@ export interface TicketExtraction {
   weight: string;
   amount: string;
   description: string;
+  /** Deterministic classification based on the extracted vendor. */
+  wasteType: string;
 }
 

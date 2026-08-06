@@ -18,7 +18,7 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Runs free local OCR on a ticket image and returns only the supported ticket fields.
+ * Runs free local OCR on a ticket image and returns the supported ticket fields plus deterministic waste classification.
  * @summary Extract ticket fields from an image
  */
 
@@ -37,7 +37,8 @@ export const ExtractTicketResponse = zod.object({
   "date": zod.string(),
   "weight": zod.string(),
   "amount": zod.string(),
-  "description": zod.string()
+  "description": zod.string(),
+  "wasteType": zod.string().describe('Deterministic classification based on the extracted vendor.')
 })
 
 

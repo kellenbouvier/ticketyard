@@ -23,6 +23,7 @@ type TicketFields = {
   weight: string;
   amount: string;
   description: string;
+  wasteType: string;
 };
 
 const emptyFields: TicketFields = {
@@ -32,6 +33,7 @@ const emptyFields: TicketFields = {
   weight: "",
   amount: "",
   description: "",
+  wasteType: "",
 };
 
 function extensionForMediaType(mediaType: string): string {
@@ -477,6 +479,23 @@ function looksLikeDocumentHeading(line: string): boolean {
   );
 }
 
+function classifyWasteType(vendor: string): string {
+  const normalizedVendor = vendor.replace(/\s+/g, " ").trim();
+  if (!normalizedVendor) return "";
+  if (/metro\s+green/i.test(normalizedVendor)) return "Inert Landfill";
+  if (/volk\s+and\s+materials/i.test(normalizedVendor)) {
+    return "Inert Landfill";
+  }
+  if (
+    /landfill|transfer\s+station|waste\s+disposal\s+facility/i.test(
+      normalizedVendor,
+    )
+  ) {
+    return "Landfill";
+  }
+  return "";
+}
+
 function parseOcrText(text: string): TicketFields {
   const lines = cleanOcrLines(text);
   if (!lines.length) return emptyFields;
@@ -533,6 +552,7 @@ function parseOcrText(text: string): TicketFields {
       lines,
       /^(?:description|material|materials|load|contents|waste\s+type|product)\s*[:#-]?\s*(.*)$/i,
     ) || "";
+  const wasteType = classifyWasteType(vendor);
 
   return ExtractTicketResponse.parse({
     ...emptyFields,
@@ -542,6 +562,7 @@ function parseOcrText(text: string): TicketFields {
     weight,
     amount,
     description,
+    wasteType,
   });
 }
 
