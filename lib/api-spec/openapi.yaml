@@ -376,6 +376,18 @@ components:
           type: string
       required:
         - user
+    WasteCategory:
+      type: string
+      enum:
+        - "C&D"
+        - "Inert"
+      description: >-
+        Disposal category. "C&D" = general construction/demolition debris
+        to a traditional landfill. "Inert" = clean concrete, asphalt,
+        brick, rock, or clean fill taken to an inert landfill / recycling
+        facility. Disposal cost, hauling cost, billing, and profitability
+        are tracked separately per category and must never be summed
+        together.
     TicketExtractionInput:
       type: object
       properties:
@@ -424,9 +436,8 @@ components:
           type: string
         description:
           type: string
-        wasteType:
-          type: string
-          description: Deterministic classification based on the extracted vendor.
+        wasteCategory:
+          $ref: "#/components/schemas/WasteCategory"
       required:
         - documentType
         - vendor
@@ -438,7 +449,7 @@ components:
         - weight
         - amount
         - description
-        - wasteType
+        - wasteCategory
     Year:
       type: object
       properties:
@@ -539,8 +550,10 @@ components:
           type: string
         description:
           type: string
-        wasteType:
-          type: string
+        wasteCategory:
+          oneOf:
+            - $ref: "#/components/schemas/WasteCategory"
+            - type: "null"
         createdAt:
           type: string
           format: date-time
@@ -560,7 +573,7 @@ components:
         - weight
         - amount
         - description
-        - wasteType
+        - wasteCategory
         - createdAt
     CreateTicketRecordInput:
       type: object
@@ -593,8 +606,10 @@ components:
           type: string
         description:
           type: string
-        wasteType:
-          type: string
+        wasteCategory:
+          oneOf:
+            - $ref: "#/components/schemas/WasteCategory"
+            - type: "null"
       required:
         - fileName
         - status
@@ -629,5 +644,7 @@ components:
           type: string
         description:
           type: string
-        wasteType:
-          type: string
+        wasteCategory:
+          oneOf:
+            - $ref: "#/components/schemas/WasteCategory"
+            - type: "null"

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TicketRecordStatus } from './ticketRecordStatus';
+import type { WasteCategory } from './wasteCategory';
 
 export interface TicketRecord {
   id: number;
@@ -23,6 +24,6 @@ export interface TicketRecord {
   weight: string;
   amount: string;
   description: string;
-  wasteType: string;
+  wasteCategory: WasteCategory | null;
   createdAt: Date;
 }

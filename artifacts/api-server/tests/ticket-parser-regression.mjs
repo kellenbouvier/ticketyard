@@ -39,7 +39,7 @@ const fixtures = [
       weight: "14.85 Tons",
       amount: "",
       description: "Concrete w/ Wire or Rebar",
-      wasteType: "Inert Landfill",
+      wasteCategory: "Inert",
     },
   },
   {
@@ -60,7 +60,10 @@ const fixtures = [
       weight: "4.49 Tons",
       amount: "$125.99",
       description: "2000T-C&D - Mixed",
-      wasteType: "Landfill",
+      // Willow Oak isn't Metro Green or Vulcan Materials, so it defaults
+      // to C&D — which also matches the ticket's own product description
+      // ("2000T-C&D - Mixed").
+      wasteCategory: "C&D",
     },
   },
   {
@@ -81,7 +84,7 @@ const fixtures = [
       weight: "",
       amount: "$5,600.00",
       description: "Concrete",
-      wasteType: "Inert Landfill",
+      wasteCategory: "Inert",
     },
   },
 ];
@@ -102,11 +105,27 @@ const neverGuessedValues = new Set([
   "LD% Qty UOM Rate",
 ]);
 
+// Every /api route except /healthz and /auth/* sits behind the login gate
+// (see AUDIT.md L-1) — authenticate once and reuse the session cookie.
+const loginResponse = await fetch(`${apiUrl}/api/auth/login`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    username: process.env.APP_LOGIN_USER,
+    password: process.env.APP_LOGIN_PASSWORD,
+  }),
+});
+assert.equal(loginResponse.status, 200, "login for regression test");
+const sessionCookie = loginResponse.headers
+  .get("set-cookie")
+  ?.split(";")[0];
+assert.ok(sessionCookie, "login response must set a session cookie");
+
 for (const fixture of fixtures) {
   const imageData = (await readFile(fixture.filePath)).toString("base64");
   const response = await fetch(`${apiUrl}/api/tickets/extract`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", cookie: sessionCookie },
     body: JSON.stringify({
       fileName: fixture.fileName,
       mediaType: fixture.mediaType,

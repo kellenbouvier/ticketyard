@@ -73,7 +73,7 @@ export const ExtractTicketResponse = zod.object({
   "weight": zod.string(),
   "amount": zod.string(),
   "description": zod.string(),
-  "wasteType": zod.string().describe('Deterministic classification based on the extracted vendor.')
+  "wasteCategory": zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.')
 })
 
 
@@ -214,7 +214,7 @@ export const ListTicketsResponseItem = zod.object({
   "weight": zod.string(),
   "amount": zod.string(),
   "description": zod.string(),
-  "wasteType": zod.string(),
+  "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]),
   "createdAt": zod.coerce.date()
 })
 export const ListTicketsResponse = zod.array(ListTicketsResponseItem)
@@ -244,7 +244,7 @@ export const CreateTicketRecordBody = zod.object({
   "weight": zod.string().optional(),
   "amount": zod.string().optional(),
   "description": zod.string().optional(),
-  "wasteType": zod.string().optional()
+  "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]).optional()
 })
 
 export const CreateTicketRecordResponse = zod.object({
@@ -263,7 +263,7 @@ export const CreateTicketRecordResponse = zod.object({
   "weight": zod.string(),
   "amount": zod.string(),
   "description": zod.string(),
-  "wasteType": zod.string(),
+  "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]),
   "createdAt": zod.coerce.date()
 })
 
@@ -293,7 +293,7 @@ export const UpdateTicketRecordBody = zod.object({
   "weight": zod.string().optional(),
   "amount": zod.string().optional(),
   "description": zod.string().optional(),
-  "wasteType": zod.string().optional()
+  "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]).optional()
 })
 
 export const UpdateTicketRecordResponse = zod.object({
@@ -312,7 +312,7 @@ export const UpdateTicketRecordResponse = zod.object({
   "weight": zod.string(),
   "amount": zod.string(),
   "description": zod.string(),
-  "wasteType": zod.string(),
+  "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]),
   "createdAt": zod.coerce.date()
 })
 

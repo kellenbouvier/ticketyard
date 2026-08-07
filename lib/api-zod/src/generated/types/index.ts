@@ -21,4 +21,5 @@ export * from './ticketRecord';
 export * from './ticketRecordStatus';
 export * from './updateJobInput';
 export * from './updateTicketRecordInput';
+export * from './wasteCategory';
 export * from './year';

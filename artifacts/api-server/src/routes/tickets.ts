@@ -5,6 +5,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { ExtractTicketBody, ExtractTicketResponse } from "@workspace/api-zod";
+import type { WasteCategory } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -27,7 +28,7 @@ type TicketFields = {
   weight: string;
   amount: string;
   description: string;
-  wasteType: string;
+  wasteCategory: WasteCategory;
 };
 
 const emptyFields: TicketFields = {
@@ -41,7 +42,11 @@ const emptyFields: TicketFields = {
   weight: "",
   amount: "",
   description: "",
-  wasteType: "",
+  // D.H. Griffin tracks C&D landfill and inert/concrete recycling
+  // separately and every ticket needs exactly one of the two — see
+  // classifyWasteCategory() below. Even a wholly unreadable ticket still
+  // gets the default category; it stays manually overridable in the UI.
+  wasteCategory: "C&D",
 };
 
 function extensionForMediaType(mediaType: string): string {
@@ -615,21 +620,22 @@ function looksLikeDocumentHeading(line: string): boolean {
   return isFieldHeading(line);
 }
 
-function classifyWasteType(vendor: string): string {
+// D.H. Griffin tracks disposal cost, hauling cost, billing, and
+// profitability separately for C&D landfill vs. inert/concrete recycling
+// — the two must never be merged anywhere downstream. This classifier is
+// a deterministic vendor rule (never AI, never OCR-text guessing) and
+// always returns one of the two categories; there is no third "unknown"
+// value for a freshly-classified ticket, because the UI lets the user
+// manually override the default in one click, and picking a default is
+// safer than surfacing yet another unclassified state to review.
+export function classifyWasteCategory(vendor: string): WasteCategory {
   const normalizedVendor = vendor.replace(/\s+/g, " ").trim();
-  if (!normalizedVendor) return "";
-  if (/metro\s+green/i.test(normalizedVendor)) return "Inert Landfill";
-  if (/volk\s+and\s+materials/i.test(normalizedVendor)) {
-    return "Inert Landfill";
-  }
-  if (
-    /landfill|transfer\s+station|waste\s+disposal\s+facility/i.test(
-      normalizedVendor,
-    )
-  ) {
-    return "Landfill";
-  }
-  return "";
+  if (/metro\s+green/i.test(normalizedVendor)) return "Inert";
+  // Was previously mistyped as "volk and materials" and could never
+  // match any real vendor name — Vulcan Materials tickets silently fell
+  // through to the C&D default instead of being recognized as Inert.
+  if (/vulcan\s+materials/i.test(normalizedVendor)) return "Inert";
+  return "C&D";
 }
 
 // The functions below implement per-vendor *layout* rules (this ticket
@@ -888,7 +894,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
     return ExtractTicketResponse.parse({
       ...emptyFields,
       ...layoutFields,
-      wasteType: classifyWasteType(layoutFields.vendor ?? ""),
+      wasteCategory: classifyWasteCategory(layoutFields.vendor ?? ""),
     });
   }
 
@@ -949,7 +955,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
       lines,
       /^(?:description|material|materials|load|contents|waste\s+type|product)\s*[:#-]?\s*(.*)$/i,
     ) || "";
-  const wasteType = classifyWasteType(vendor);
+  const wasteCategory = classifyWasteCategory(vendor);
 
   return ExtractTicketResponse.parse({
     ...emptyFields,
@@ -963,7 +969,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
     weight,
     amount,
     description,
-    wasteType,
+    wasteCategory,
   });
 }
 

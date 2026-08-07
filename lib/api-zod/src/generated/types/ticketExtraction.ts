@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TicketExtractionDocumentType } from './ticketExtractionDocumentType';
+import type { WasteCategory } from './wasteCategory';
 
 export interface TicketExtraction {
   /** Deterministic document classification. */
@@ -19,6 +20,5 @@ export interface TicketExtraction {
   weight: string;
   amount: string;
   description: string;
-  /** Deterministic classification based on the extracted vendor. */
-  wasteType: string;
+  wasteCategory: WasteCategory;
 }

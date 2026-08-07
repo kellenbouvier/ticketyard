@@ -20,6 +20,17 @@ export interface AuthUser {
   user: string;
 }
 
+/**
+ * Disposal category. "C&D" = general construction/demolition debris to a traditional landfill. "Inert" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill / recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.
+ */
+export type WasteCategory = typeof WasteCategory[keyof typeof WasteCategory];
+
+
+export const WasteCategory = {
+  'C&D': 'C&D',
+  Inert: 'Inert',
+} as const;
+
 export type TicketExtractionInputMediaType = typeof TicketExtractionInputMediaType[keyof typeof TicketExtractionInputMediaType];
 
 
@@ -64,8 +75,7 @@ export interface TicketExtraction {
   weight: string;
   amount: string;
   description: string;
-  /** Deterministic classification based on the extracted vendor. */
-  wasteType: string;
+  wasteCategory: WasteCategory;
 }
 
 export interface Year {
@@ -128,7 +138,7 @@ export interface TicketRecord {
   weight: string;
   amount: string;
   description: string;
-  wasteType: string;
+  wasteCategory: WasteCategory | null;
   createdAt: string;
 }
 
@@ -147,7 +157,7 @@ export interface CreateTicketRecordInput {
   weight?: string;
   amount?: string;
   description?: string;
-  wasteType?: string;
+  wasteCategory?: WasteCategory | null;
 }
 
 export interface UpdateTicketRecordInput {
@@ -165,6 +175,6 @@ export interface UpdateTicketRecordInput {
   weight?: string;
   amount?: string;
   description?: string;
-  wasteType?: string;
+  wasteCategory?: WasteCategory | null;
 }
 

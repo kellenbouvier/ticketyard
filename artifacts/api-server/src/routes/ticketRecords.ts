@@ -62,7 +62,7 @@ router.post("/jobs/:jobId/tickets", async (req, res) => {
       weight: data.weight ?? "",
       amount: data.amount ?? "",
       description: data.description ?? "",
-      wasteType: data.wasteType ?? "",
+      wasteCategory: data.wasteCategory ?? null,
     })
     .returning();
   res.status(201).json(created);
@@ -94,7 +94,7 @@ router.patch("/jobs/:jobId/tickets/:ticketId", async (req, res) => {
       ...(data.weight !== undefined && { weight: data.weight }),
       ...(data.amount !== undefined && { amount: data.amount }),
       ...(data.description !== undefined && { description: data.description }),
-      ...(data.wasteType !== undefined && { wasteType: data.wasteType }),
+      ...(data.wasteCategory !== undefined && { wasteCategory: data.wasteCategory }),
     })
     .where(and(eq(ticketsTable.id, ticketId), eq(ticketsTable.jobId, jobId)))
     .returning();

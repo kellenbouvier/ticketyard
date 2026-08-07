@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TicketRecordStatus } from './ticketRecordStatus';
+import type { WasteCategory } from './wasteCategory';
 
 export interface UpdateTicketRecordInput {
   /** @minLength 1 */
@@ -22,5 +23,5 @@ export interface UpdateTicketRecordInput {
   weight?: string;
   amount?: string;
   description?: string;
-  wasteType?: string;
+  wasteCategory?: WasteCategory | null;
 }
