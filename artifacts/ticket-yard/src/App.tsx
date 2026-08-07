@@ -5,6 +5,8 @@ import {
   AlertTriangle,
   Archive,
   ArrowDownToLine,
+  ArrowLeft,
+  Briefcase,
   Check,
   ChevronDown,
   CircleHelp,
@@ -12,7 +14,6 @@ import {
   ClipboardList,
   CloudUpload,
   FileImage,
-  FileOutput,
   FileText,
   FolderOpen,
   HardHat,
@@ -38,6 +39,28 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
+
+// ─── Job list ────────────────────────────────────────────────────────────────
+// Edit this array to update the jobs shown on the home screen.
+// Format: { jobNumber: "##-##-####", jobName: "..." }
+// Do NOT include state initials, addresses, or other location data here.
+
+type Job = { jobNumber: string; jobName: string };
+
+const JOBS: Job[] = [
+  { jobNumber: '26-25-1325', jobName: 'DH Griffin - Lovett STEM Academy' },
+  { jobNumber: '26-25-1040', jobName: 'DHGMJV - H-JAIA Concourse D Widening-South' },
+  { jobNumber: '26-25-0982', jobName: 'DH Griffin - Wellstar Kennestone Hospital Expansion' },
+  { jobNumber: '26-25-0874', jobName: 'DH Griffin - Atlanta BeltLine Trail Extension' },
+  { jobNumber: '26-25-0721', jobName: 'DH Griffin - Hartsfield-Jackson Terminal Renovation' },
+  { jobNumber: '25-25-9631', jobName: 'Johnson/Kreis Construction - First Baptist Church of Covington' },
+  { jobNumber: '25-25-9445', jobName: 'DH Griffin - Georgia Tech Campus Renewal' },
+  { jobNumber: '25-25-9210', jobName: 'DH Griffin - I-285 Bridge Rehabilitation' },
+  { jobNumber: '25-25-8876', jobName: 'DH Griffin - Fulton County Courthouse Demo' },
+  { jobNumber: '25-25-8542', jobName: 'DH Griffin - Ponce City Market Phase 3' },
+];
+
+// ─── Row / extraction types ───────────────────────────────────────────────────
 
 type RowStatus = 'Reading' | 'Processed' | 'Failed' | 'Manual';
 type FieldKey = keyof TicketExtraction;
@@ -78,6 +101,8 @@ const fields: { key: FieldKey; label: string; short: string }[] = [
   { key: 'wasteType', label: 'Waste Type', short: 'Waste Type' },
 ];
 
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
 function getSupportedMediaType(file: File): TicketExtractionInput['mediaType'] | null {
   if (acceptedTypes.includes(file.type)) {
     return file.type as TicketExtractionInput['mediaType'];
@@ -117,6 +142,8 @@ const samplePreview = (name: string, accent: string) =>
       </g>
     </svg>
   `)}`;
+
+// ─── Shared small components ─────────────────────────────────────────────────
 
 function StatusPill({ status }: { status: RowStatus }) {
   const styles: Record<RowStatus, string> = {
@@ -168,11 +195,111 @@ function AppMark() {
   );
 }
 
-function Sidebar({ onNewBatch }: { onNewBatch: () => void }) {
+// ─── Job selector page ────────────────────────────────────────────────────────
+
+function JobSelector({ onSelect }: { onSelect: (job: Job) => void }) {
+  const [query, setQuery] = useState('');
+  const { isLoading: healthLoading, isError: healthError } = useHealthCheck();
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return JOBS;
+    return JOBS.filter(
+      (j) => j.jobNumber.toLowerCase().includes(q) || j.jobName.toLowerCase().includes(q),
+    );
+  }, [query]);
+
+  return (
+    <div className="app-noise flex min-h-[100dvh] flex-col bg-[hsl(var(--background))]">
+      {/* Header */}
+      <header className="flex h-[70px] items-center justify-between border-b border-[hsl(var(--border)/.72)] bg-[hsl(var(--background)/.8)] px-5 backdrop-blur md:px-9">
+        <AppMark />
+        <div className="flex items-center gap-3">
+          <div data-testid="status-api-health" className="hidden items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))] sm:flex">
+            <span className={`h-2 w-2 rounded-full ${healthLoading ? 'bg-[hsl(var(--primary))]' : healthError ? 'bg-[hsl(var(--destructive))]' : 'bg-[hsl(var(--accent))]'}`} />
+            {healthLoading ? 'Checking service' : healthError ? 'Service unavailable' : 'Local OCR ready'}
+          </div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[hsl(var(--accent))] text-xs font-bold text-[hsl(var(--accent-foreground))]">MR</div>
+        </div>
+      </header>
+
+      {/* Body */}
+      <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-10 md:px-9 md:py-14">
+        <div className="mb-10 animate-rise">
+          <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[hsl(var(--accent))]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--accent))]" /> D.H. Griffin Operations
+          </div>
+          <h1 className="font-display text-[clamp(2rem,5vw,3.5rem)] font-semibold leading-[.95] tracking-[-.055em]">
+            Select a job<br /><span className="text-[hsl(var(--primary))]">to get started.</span>
+          </h1>
+          <p className="mt-4 max-w-md text-sm leading-6 text-[hsl(var(--muted-foreground))]">
+            Choose the job you're working on. Tickets and invoices you upload will be kept with that job.
+          </p>
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-6 animate-rise delay-1">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+          <input
+            data-testid="input-job-search"
+            type="search"
+            placeholder="Search by job number or name…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.6)] py-2.5 pl-9 pr-4 text-sm outline-none transition focus:border-[hsl(var(--primary)/.6)] focus:bg-[hsl(var(--card))]"
+          />
+        </div>
+
+        {/* Job cards */}
+        <div className="animate-rise delay-2 space-y-2">
+          {filtered.length === 0 && (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)] py-16 text-center">
+              <Inbox size={26} className="text-[hsl(var(--muted-foreground))]" />
+              <p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">No jobs match "{query}"</p>
+            </div>
+          )}
+          {filtered.map((job) => (
+            <button
+              key={job.jobNumber}
+              data-testid={`button-job-${job.jobNumber}`}
+              onClick={() => onSelect(job)}
+              className="group flex w-full items-center gap-4 rounded-xl border border-[hsl(var(--card-border))] bg-[hsl(var(--card)/.75)] px-5 py-4 text-left shadow-[0_2px_0_hsl(var(--foreground)/.03)] transition hover:border-[hsl(var(--primary)/.45)] hover:bg-[hsl(var(--card))] hover:shadow-[0_3px_0_hsl(var(--primary)/.1)]"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))] transition group-hover:bg-[hsl(var(--primary)/.18)]">
+                <Briefcase size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-mono-app text-[11px] font-bold tracking-[.06em] text-[hsl(var(--muted-foreground))]">{job.jobNumber}</div>
+                <div className="mt-0.5 truncate text-sm font-semibold text-[hsl(var(--foreground))]">{job.jobName}</div>
+              </div>
+              <ChevronDown size={16} className="-rotate-90 text-[hsl(var(--muted-foreground))] transition group-hover:text-[hsl(var(--primary))]" />
+            </button>
+          ))}
+        </div>
+      </main>
+
+      <footer className="border-t border-[hsl(var(--border)/.65)] px-5 py-4 text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))] md:px-9">
+        <div className="flex items-center gap-2"><HardHat size={13} /> Built for the people who keep the site moving.</div>
+      </footer>
+    </div>
+  );
+}
+
+// ─── Register sidebar ─────────────────────────────────────────────────────────
+
+function Sidebar({ job, onNewBatch, onBack }: { job: Job; onNewBatch: () => void; onBack: () => void }) {
   return (
     <aside className="hidden min-h-[100dvh] w-[236px] shrink-0 flex-col bg-[hsl(var(--sidebar))] px-4 py-5 text-[hsl(var(--sidebar-foreground))] md:flex">
       <div className="px-2"><AppMark /></div>
-      <div className="mt-10">
+
+      {/* Active job */}
+      <div className="mt-6 rounded-xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-accent)/.55)] p-3.5">
+        <div className="text-[10px] font-bold uppercase tracking-[.14em] text-[hsl(var(--sidebar-foreground)/.45)]">Active job</div>
+        <div className="mt-1 font-mono-app text-[11px] font-bold text-[hsl(var(--sidebar-primary))]">{job.jobNumber}</div>
+        <div className="mt-0.5 text-xs font-semibold leading-4 text-[hsl(var(--sidebar-foreground))]">{job.jobName}</div>
+      </div>
+
+      <div className="mt-6">
         <div className="px-2 text-[10px] font-bold uppercase tracking-[.16em] text-[hsl(var(--sidebar-foreground)/.43)]">Workspace</div>
         <nav className="mt-3 space-y-1">
           <button data-testid="nav-current-workspace" className="flex w-full items-center gap-3 rounded-lg bg-[hsl(var(--sidebar-accent))] px-3 py-2.5 text-sm font-semibold text-[hsl(var(--sidebar-accent-foreground))]">
@@ -188,10 +315,13 @@ function Sidebar({ onNewBatch }: { onNewBatch: () => void }) {
         <button data-testid="button-sidebar-new-batch" onClick={onNewBatch} className="mt-3 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[hsl(var(--sidebar-foreground)/.62)] transition hover:bg-[hsl(var(--sidebar-accent))] hover:text-[hsl(var(--sidebar-foreground))]">
           <Plus size={16} /> New batch
         </button>
+        <button data-testid="button-switch-job" onClick={onBack} className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[hsl(var(--sidebar-foreground)/.62)] transition hover:bg-[hsl(var(--sidebar-accent))] hover:text-[hsl(var(--sidebar-foreground))]">
+          <ArrowLeft size={16} /> Switch job
+        </button>
       </div>
       <div className="mt-auto">
         <div className="mb-4 rounded-xl border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-accent)/.55)] p-3.5">
-           <div className="flex items-center gap-2 text-xs font-semibold"><ShieldCheck size={15} className="text-[hsl(var(--sidebar-primary))]" /> Local OCR extraction</div>
+          <div className="flex items-center gap-2 text-xs font-semibold"><ShieldCheck size={15} className="text-[hsl(var(--sidebar-primary))]" /> Local OCR extraction</div>
           <div className="mt-2 text-[11px] leading-4 text-[hsl(var(--sidebar-foreground)/.55)]">Fields stay reviewable. You stay in control.</div>
           <div className="mt-3 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--sidebar-primary))]"><span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--sidebar-primary))]" /> Ready</div>
         </div>
@@ -203,6 +333,8 @@ function Sidebar({ onNewBatch }: { onNewBatch: () => void }) {
     </aside>
   );
 }
+
+// ─── Preview modal ────────────────────────────────────────────────────────────
 
 function PreviewModal({ row, onClose }: { row: TicketRow; onClose: () => void }) {
   return (
@@ -217,6 +349,8 @@ function PreviewModal({ row, onClose }: { row: TicketRow; onClose: () => void })
     </div>
   );
 }
+
+// ─── Ticket register table ────────────────────────────────────────────────────
 
 function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
   rows: TicketRow[];
@@ -235,7 +369,7 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
         <div className="flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))]"><span className="h-2 w-2 rounded-full bg-[hsl(var(--accent))]" /> Changes save locally</div>
       </div>
       <div className="overflow-x-auto">
-          <div className="ticket-table min-w-[1100px]">
+        <div className="ticket-table min-w-[1100px]">
           <div className="grid grid-cols-[180px_1.05fr_1.05fr_.85fr_.8fr_.82fr_1.3fr_1fr_112px] gap-3 bg-[hsl(var(--muted)/.45)] px-5 py-2.5 text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">
             <div>Source</div>{fields.map((field) => <div key={field.key}>{field.short}</div>)}<div className="text-right">Actions</div>
           </div>
@@ -266,8 +400,19 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
   );
 }
 
-function Home() {
-  const [rows, setRows] = useState<TicketRow[]>([]);
+// ─── Register view (formerly Home) ───────────────────────────────────────────
+
+function Register({
+  job,
+  rows,
+  setRows,
+  onBack,
+}: {
+  job: Job;
+  rows: TicketRow[];
+  setRows: (updater: (rows: TicketRow[]) => TicketRow[]) => void;
+  onBack: () => void;
+}) {
   const [dragging, setDragging] = useState(false);
   const [previewRow, setPreviewRow] = useState<TicketRow | null>(null);
   const [notice, setNotice] = useState<{ message: string; kind: 'success' | 'error' | 'info' } | null>(null);
@@ -303,7 +448,7 @@ function Home() {
       setRows((current) => current.map((item) => item.id === id ? { ...item, status: 'Failed', error: message } : item));
       announce(`${file.name}: ${message}`, 'error');
     }
-  }, [announce, extractMutation]);
+  }, [announce, extractMutation, setRows]);
 
   const handleFiles = useCallback((files: FileList | File[]) => {
     Array.from(files).forEach((file) => void processFile(file));
@@ -335,29 +480,29 @@ function Home() {
         announce(`Retry failed for ${row.fileName}: ${message}`, 'error');
       }
     })();
-  }, [announce, extractMutation, rows]);
+  }, [announce, extractMutation, rows, setRows]);
 
   const updateField = useCallback((id: string, field: FieldKey, value: string) => {
     setRows((current) => current.map((row) => row.id === id ? { ...row, status: row.status === 'Processed' ? 'Processed' : row.status, extraction: { ...row.extraction, [field]: value } } : row));
-  }, []);
+  }, [setRows]);
 
   const deleteRow = useCallback((id: string) => {
     const row = rows.find((item) => item.id === id);
     setRows((current) => current.filter((item) => item.id !== id));
     if (row) announce(`${row.fileName} removed from the register.`, 'info');
-  }, [announce, rows]);
+  }, [announce, rows, setRows]);
 
   const addManualRow = useCallback(() => {
     const id = `manual-${Date.now()}`;
     setRows((current) => [{ id, fileName: 'Manual entry', preview: samplePreview('MANUAL', '#ef9f22'), status: 'Manual', extraction: emptyExtraction }, ...current]);
     announce('Blank manual row added. Fill in the fields below.');
-  }, [announce]);
+  }, [announce, setRows]);
 
   const newBatch = useCallback(() => {
     if (rows.length && !window.confirm('Start a new batch? This will clear the current register.')) return;
-    setRows([]);
+    setRows(() => []);
     announce('New batch started. The register is ready.', 'info');
-  }, [announce, rows.length]);
+  }, [announce, rows.length, setRows]);
 
   const totals = useMemo(() => {
     const ticketCount = rows.length;
@@ -374,28 +519,37 @@ function Home() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `ticketyard-register-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `ticketyard-${job.jobNumber}-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
     announce(`${rows.length} rows exported as CSV.`);
-  }, [announce, rows]);
+  }, [announce, job.jobNumber, rows]);
 
   const openBrowse = () => fileInputRef.current?.click();
 
   return (
     <div className="app-noise flex min-h-[100dvh] bg-[hsl(var(--background))]">
-      <Sidebar onNewBatch={newBatch} />
+      <Sidebar job={job} onNewBatch={newBatch} onBack={onBack} />
       <main className="min-w-0 flex-1">
         <header className="flex h-[70px] items-center justify-between border-b border-[hsl(var(--border)/.72)] bg-[hsl(var(--background)/.8)] px-5 backdrop-blur md:px-9">
           <div className="flex items-center gap-3">
             <button data-testid="button-mobile-menu" className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] md:hidden"><Menu size={19} /></button>
             <div className="md:hidden"><AppMark /></div>
-            <div className="desktop-nav flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]"><span>Operations</span><ChevronDown size={13} /><span className="font-semibold text-[hsl(var(--foreground))]">Ticket register</span></div>
+            {/* Mobile back button */}
+            <button data-testid="button-back-to-jobs" onClick={onBack} className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] md:flex">
+              <ArrowLeft size={14} /><span className="hidden sm:inline">Jobs</span>
+            </button>
+            <div className="hidden items-center gap-1.5 text-xs text-[hsl(var(--muted-foreground))] md:flex">
+              <ChevronDown size={13} className="-rotate-90" />
+              <span className="font-mono-app text-[11px] font-bold tracking-[.06em] text-[hsl(var(--foreground))]">{job.jobNumber}</span>
+              <span className="text-[hsl(var(--muted-foreground)/.6)]">·</span>
+              <span className="font-semibold text-[hsl(var(--foreground))]">Ticket register</span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <div data-testid="status-api-health" className="hidden items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))] sm:flex">
               <span className={`h-2 w-2 rounded-full ${healthLoading ? 'bg-[hsl(var(--primary))]' : healthError ? 'bg-[hsl(var(--destructive))]' : 'bg-[hsl(var(--accent))]'}`} />
-               {healthLoading ? 'Checking service' : healthError ? 'Service unavailable' : 'Local OCR ready'}
+              {healthLoading ? 'Checking service' : healthError ? 'Service unavailable' : 'Local OCR ready'}
             </div>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[hsl(var(--accent))] text-xs font-bold text-[hsl(var(--accent-foreground))]">MR</div>
           </div>
@@ -405,9 +559,9 @@ function Home() {
             <div>
               <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[hsl(var(--accent))]"><span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--accent))]" /> Morning yard run</div>
               <h1 className="font-display text-[clamp(2.3rem,5vw,4.25rem)] font-semibold leading-[.95] tracking-[-.065em]">Make the paper<br /><span className="text-[hsl(var(--primary))]">pull its weight.</span></h1>
-              <p className="mt-4 max-w-lg text-sm leading-6 text-[hsl(var(--muted-foreground))]">Upload the tickets from today’s hauls. TicketYard reads the mess, leaves you the final say, and keeps the register moving.</p>
+              <p className="mt-4 max-w-lg text-sm leading-6 text-[hsl(var(--muted-foreground))]">Upload the tickets from today's hauls. TicketYard reads the mess, leaves you the final say, and keeps the register moving.</p>
             </div>
-            <div className="hidden items-center gap-2 pb-1 lg:flex"><span className="font-mono-app text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Batch / <span className="text-[hsl(var(--foreground))]">APR 18—25</span></span><button data-testid="button-batch-menu" onClick={() => window.alert('Batch options are available from this workspace.')} className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]"><MoreHorizontal size={18} /></button></div>
+            <div className="hidden items-center gap-2 pb-1 lg:flex"><span className="font-mono-app text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">Job / <span className="text-[hsl(var(--foreground))]">{job.jobNumber}</span></span><button data-testid="button-batch-menu" onClick={() => window.alert('Batch options are available from this workspace.')} className="rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]"><MoreHorizontal size={18} /></button></div>
           </div>
 
           <div className="stats-grid mb-6 grid grid-cols-3 gap-3 md:gap-4">
@@ -422,12 +576,12 @@ function Home() {
                 <input ref={fileInputRef} data-testid="input-ticket-files" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(event) => { if (event.target.files) handleFiles(event.target.files); event.target.value = ''; }} />
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--primary)/.16)] text-[hsl(var(--primary))]"><CloudUpload size={24} /></div>
                 <h2 className="mt-5 font-display text-xl font-semibold tracking-[-.03em]">{dragging ? 'Drop tickets here' : 'Bring in the pile'}</h2>
-                <p className="mt-2 max-w-xs text-sm leading-5 text-[hsl(var(--muted-foreground))]">Drop photos here or browse your camera roll. We’ll keep the original attached to every row.</p>
+                <p className="mt-2 max-w-xs text-sm leading-5 text-[hsl(var(--muted-foreground))]">Drop photos here or browse your camera roll. We'll keep the original attached to every row.</p>
                 <button data-testid="button-browse-tickets" onClick={openBrowse} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[hsl(var(--foreground))] px-3.5 py-2.5 text-xs font-bold text-[hsl(var(--background))] shadow-[0_2px_0_hsl(var(--foreground)/.2)] transition hover:-translate-y-px"><UploadCloud size={15} /> Browse tickets</button>
                 <div className="mt-5 flex items-center gap-2 border-t border-[hsl(var(--border)/.75)] pt-4 text-[10px] font-semibold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]"><FileImage size={13} /> JPG, PNG, WEBP, GIF <span className="ml-auto font-mono-app normal-case tracking-normal">Up to 25 MB</span></div>
               </section>
               <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.42)] p-5">
-                 <div className="flex items-start gap-3"><div className="mt-0.5 text-[hsl(var(--accent))]"><Sparkles size={17} /></div><div><h3 className="text-sm font-semibold">A fast first read, not a black box.</h3><p className="mt-1.5 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Local OCR suggests the fields. Your superintendent signs off. Every correction stays visible before the CSV leaves the yard.</p></div></div>
+                <div className="flex items-start gap-3"><div className="mt-0.5 text-[hsl(var(--accent))]"><Sparkles size={17} /></div><div><h3 className="text-sm font-semibold">A fast first read, not a black box.</h3><p className="mt-1.5 text-xs leading-5 text-[hsl(var(--muted-foreground))]">Local OCR suggests the fields. Your superintendent signs off. Every correction stays visible before the CSV leaves the yard.</p></div></div>
               </div>
             </div>
             <div className="min-w-0">
@@ -447,10 +601,54 @@ function Home() {
   );
 }
 
-function Router() {
-  return <Switch><Route path="/" component={Home} /><Route component={NotFound} /></Switch>;
+// ─── Root app — manages job selection and per-job row storage ─────────────────
+
+function App() {
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  // Rows are stored per job so switching jobs doesn't mix records.
+  const [rowsByJob, setRowsByJob] = useState<Record<string, TicketRow[]>>({});
+
+  const jobRows = selectedJob ? (rowsByJob[selectedJob.jobNumber] ?? []) : [];
+
+  const setJobRows = useCallback(
+    (updater: (rows: TicketRow[]) => TicketRow[]) => {
+      if (!selectedJob) return;
+      setRowsByJob((prev) => ({
+        ...prev,
+        [selectedJob.jobNumber]: updater(prev[selectedJob.jobNumber] ?? []),
+      }));
+    },
+    [selectedJob],
+  );
+
+  if (!selectedJob) {
+    return <JobSelector onSelect={setSelectedJob} />;
+  }
+
+  return (
+    <Register
+      job={selectedJob}
+      rows={jobRows}
+      setRows={setJobRows}
+      onBack={() => setSelectedJob(null)}
+    />
+  );
 }
 
-export default function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+// ─── Entry point ──────────────────────────────────────────────────────────────
+
+export default function Root() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter>
+          <Switch>
+            <Route path="/" component={App} />
+            <Route component={NotFound} />
+          </Switch>
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
 }

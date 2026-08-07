@@ -1,0 +1,86 @@
+I want to make two final workflow improvements. Please preserve the existing OCR pipeline, invoice/ticket parsing, CSV export, and waste classification unless a change is specifically required for these features.
+
+1. NEVER GUESS OCR VALUES
+
+This is very important.
+
+If TicketYard cannot confidently determine a field from the uploaded ticket or invoice, leave that field BLANK.
+
+Do not guess based on nearby text.
+Do not use headings, labels, unrelated numbers, or likely-looking text simply to fill a field.
+
+Examples:
+- If vendor cannot be confidently identified → blank
+- If ticket/invoice number cannot be confidently identified → blank
+- If date cannot be confidently identified → blank
+- If weight cannot be confidently identified → blank
+- If amount cannot be confidently identified → blank
+- If description cannot be confidently identified → blank
+- If waste type cannot be confidently classified → blank
+
+The user can already manually edit the fields, so a blank field is much better than an incorrect value.
+
+Preserve manual editing for every field.
+
+Add regression protection so low-confidence or rejected OCR values remain blank rather than being populated by fallback guesses.
+
+
+2. ADD A JOB-SELECTION HOME PAGE
+
+The attached image shows the basic concept for the home page.
+
+Before entering the Ticket Register, the user should first select the D.H. Griffin job they are working on.
+
+The home page should show a clean list of CURRENT JOBS.
+
+For each job, I ONLY need:
+
+- Job Number in the format ##-##-####
+- Job Name
+
+DO NOT display or store for this screen:
+- The two-letter initials/codes in the far-left column (GA, SP, KC, etc.)
+- The job address/location shown in the right-hand column
+
+For example, a job option should look generally like:
+
+26-25-1040
+DHGMJV - H-JAIA Concourse D Widening-South
+
+or:
+
+25-25-9631
+Johnson/Kreis Construction - First Baptist Church of Covington
+
+The exact styling does not need to copy the spreadsheet. Use the existing TicketYard visual design and make this look like a polished job-selection dashboard.
+
+WORKFLOW:
+
+TicketYard opens
+↓
+User sees current jobs
+↓
+User clicks a job
+↓
+That opens the Ticket Register for THAT JOB
+↓
+User uploads tickets/invoices
+↓
+Those records stay associated with that selected job
+
+There should also be an obvious way from the Ticket Register to return to the job-selection page and choose another job.
+
+Tickets from different jobs should not all appear mixed together. When a job is selected, show the records associated with that job.
+
+Please keep this simple. Do not add addresses, customer initials, maps, or unnecessary job information.
+
+Use the attached current-job sheet as the reference for what a job entry contains.
+
+Before making changes, briefly tell me:
+1. how you plan to represent jobs,
+2. how existing ticket records will be associated with a selected job,
+3. whether this requires any changes that could risk the existing working OCR/parser behavior.
+
+Then implement it, test the existing Metro Green ticket, Willow Oak ticket, and Metro Green invoice regressions to make sure they still work.
+
+Do not republish automatically.

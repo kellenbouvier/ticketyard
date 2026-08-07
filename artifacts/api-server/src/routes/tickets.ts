@@ -739,16 +739,15 @@ function parseTicketNumber(lines: string[]): string {
 }
 
 function parseDate(lines: string[]): string {
+  // Only accept dates that appear next to an explicit label.
+  // Returning the first date-shaped token found anywhere is a guess and is not allowed.
   for (const line of lines) {
     const match = line.match(
       /^(?:ticket\s+)?date\s*[:#-]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})$/i,
     );
     if (match?.[1]) return match[1];
   }
-  return firstMatch(
-    lines,
-    /\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{2,4})\b/i,
-  );
+  return "";
 }
 
 function parseAmount(lines: string[]): string {
@@ -795,24 +794,18 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
     });
   }
 
+  // Generic (unrecognized layout) fallback path.
+  // Rule: only accept values that appear next to an explicit label.
+  // Do NOT guess based on nearby text, all-caps lines, or the first matching
+  // token found anywhere in the OCR output. A blank field is always better
+  // than an incorrect one — the user can edit it.
   const vendor =
-    metroFields.vendor ||
-    willowFields.vendor ||
     valueFromLine(
       lines,
       /^(?:vendor|company|hauler|supplier|facility|customer|from)\s*[:#-]?\s*(.*)$/i,
-    ) ||
-    lines.find(
-      (line) =>
-        /^[A-Z][A-Z0-9 &'.,/-]{5,}$/.test(line) &&
-        !looksLikeDocumentHeading(line) &&
-        !/^\d[\d\s./-]*$/.test(line),
-    ) ||
-    "";
+    ) || "";
 
   const ticketNumber =
-    metroFields.ticketNumber ||
-    willowFields.ticketNumber ||
     parseTicketNumber(lines) ||
     valueFromLine(
       lines,
@@ -824,40 +817,32 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
   const jobNumber = "";
 
   const date =
-    metroFields.date ||
-    willowFields.date ||
     parseDate(lines) ||
     valueFromLine(
       lines,
-      /^(?:ticket\s+)?date\s*[:#-]?\s*(.*)$/i,
+      /^(?:ticket\s+)?date\s*[:#-]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})$/i,
     ) ||
     "";
 
+  // Weight: only accept values next to an explicit weight label.
+  // Do NOT scan for bare unit tokens (e.g. "14.85 Tons") without a label —
+  // those could be table cells, subtotals, or other numeric rows.
   const weight =
-    metroFields.weight ||
-    willowFields.weight ||
     valueFromLine(
       lines,
       /^(?:(?:net|gross|tare)\s+)?weight(?:\s+(?:lbs?|pounds?|tons?|tonnes?|kg|yards?))?\s*[:#-]?\s*(.*)$/i,
-    ) ||
-    firstMatch(
-      lines,
-      /\b\d[\d,.]*\s*(?:tons?|tonnes?|lbs?|pounds?|kg|yds?|yards?)\b/i,
-    );
+    ) || "";
 
+  // Amount: only accept a value next to an explicit total/amount label.
+  // Do NOT grab the first "$" token found anywhere — that could be a line item,
+  // a unit price, a tax cell, or any other incidental dollar figure.
   const amount =
-    metroFields.amount ||
-    willowFields.amount ||
-    parseAmount(lines) ||
     valueFromLine(
       lines,
-      /^(?:(?:total|net)\s+)?(?:amount|charge|price|due|cost|total)\s*[:#-]?\s*(.*)$/i,
-    ) ||
-    "";
+      /^(?:(?:total|net)\s+)?(?:amount|charge|price|due|cost|total)\s*[:#-]?\s*(\$?\s*\d[\d,.]*(?:\.\d{2})?)$/i,
+    ) || "";
 
   const description =
-    metroFields.description ||
-    willowFields.description ||
     valueFromLine(
       lines,
       /^(?:description|material|materials|load|contents|waste\s+type|product)\s*[:#-]?\s*(.*)$/i,
