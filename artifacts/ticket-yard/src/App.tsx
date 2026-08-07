@@ -9,6 +9,10 @@ import {
   useCreateJob,
   useUpdateJob,
   useDeleteJob,
+  useListTickets,
+  useCreateTicketRecord,
+  useUpdateTicketRecord,
+  useDeleteTicketRecord,
   getListYearsQueryKey,
   getListJobsQueryKey,
 } from '@workspace/api-client-react';
@@ -17,6 +21,7 @@ import type {
   Job,
   TicketExtraction,
   TicketExtractionInput,
+  TicketRecord,
 } from '@workspace/api-client-react';
 import {
   AlertTriangle,
@@ -64,12 +69,44 @@ type RowStatus = 'Reading' | 'Processed' | 'Failed' | 'Manual';
 type FieldKey = keyof TicketExtraction;
 type TicketRow = {
   id: string;
+  /** DB id once this row has been persisted; undefined while a fresh
+   * upload is still being read (Reading) or if persisting it failed. */
+  serverId?: number;
+  /** True only for a row created from a just-uploaded file in this
+   * session — the source image itself is not persisted, so a row
+   * restored after reload has no real image to retry OCR against. */
+  hasSourceImage: boolean;
   fileName: string;
   preview: string;
   status: RowStatus;
   extraction: TicketExtraction;
   error?: string;
 };
+
+function ticketRecordToRow(record: TicketRecord): TicketRow {
+  return {
+    id: `saved-${record.id}`,
+    serverId: record.id,
+    hasSourceImage: false,
+    fileName: record.fileName,
+    preview: samplePreview(record.status === 'Manual' ? 'MANUAL ENTRY' : 'SAVED RECORD'),
+    status: record.status,
+    error: record.error ?? undefined,
+    extraction: {
+      documentType: record.documentType as TicketExtraction['documentType'],
+      vendor: record.vendor,
+      ticketNumber: record.ticketNumber,
+      invoiceNumber: record.invoiceNumber,
+      purchaseOrder: record.purchaseOrder,
+      jobNumber: record.jobNumber,
+      date: record.date,
+      weight: record.weight,
+      amount: record.amount,
+      description: record.description,
+      wasteType: record.wasteType,
+    },
+  };
+}
 
 const emptyExtraction: TicketExtraction = {
   documentType: 'ticket',
@@ -123,7 +160,7 @@ function readFileAsBase64(file: Blob): Promise<string> {
   });
 }
 
-const samplePreview = () =>
+const samplePreview = (label: string = 'MANUAL ENTRY') =>
   `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="700" height="460" viewBox="0 0 700 460">
       <rect width="700" height="460" fill="#e8e8e8"/>
@@ -131,7 +168,7 @@ const samplePreview = () =>
         <rect width="500" height="390" rx="3" fill="#f9f9f9"/>
         <rect x="24" y="24" width="452" height="55" fill="#C32020" opacity=".9"/>
         <path d="M28 111h430M28 145h350M28 179h408M28 240h430M28 274h390M28 308h240" stroke="#252b36" stroke-width="7" opacity=".4"/>
-        <text x="28" y="360" font-family="monospace" font-size="13" fill="#888">MANUAL ENTRY</text>
+        <text x="28" y="360" font-family="monospace" font-size="13" fill="#888">${label}</text>
       </g>
     </svg>
   `)}`;
@@ -1058,7 +1095,7 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
           <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">Review extracted data before export.</p>
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-[hsl(var(--muted-foreground))]">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Changes save locally
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Changes save to this job automatically
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -1096,7 +1133,7 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
                   onChange={(e) => onChange(row.id, f.key, e.target.value)} />
               ))}
               <div className="flex items-center justify-end gap-0.5">
-                {row.status === 'Failed' && (
+                {row.status === 'Failed' && row.hasSourceImage && (
                   <button onClick={() => onRetry(row.id)} title="Retry" className="action-icon rounded-md p-1.5 text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/.1)]">
                     <RotateCw size={13} />
                   </button>
@@ -1118,11 +1155,9 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
 
 // ─── Ticket register page ─────────────────────────────────────────────────────
 
-function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
+function Register({ year, job, onBackToJobs, onBackToYears }: {
   year: Year;
   job: Job;
-  rows: TicketRow[];
-  setRows: (updater: (rows: TicketRow[]) => TicketRow[]) => void;
   onBackToJobs: () => void;
   onBackToYears: () => void;
 }) {
@@ -1131,6 +1166,25 @@ function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
   const [notice, setNotice] = useState<{ message: string; kind: 'success' | 'error' | 'info' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const extractMutation = useExtractTicket();
+  const createTicket = useCreateTicketRecord();
+  const updateTicket = useUpdateTicketRecord();
+  const deleteTicket = useDeleteTicketRecord();
+
+  // Ticket register rows are persisted server-side (per job) so upload
+  // history, statuses, and manual edits survive a refresh — see AUDIT.md
+  // C-2. `rows` is seeded from the server once per job and then kept in
+  // sync locally as the source of truth for rendering, with every mutation
+  // also pushed to the API.
+  const { data: savedTickets, isLoading: ticketsLoading, isError: ticketsError } = useListTickets(job.id);
+  const [rows, setRows] = useState<TicketRow[]>([]);
+  const hydratedJobIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (savedTickets && hydratedJobIdRef.current !== job.id) {
+      setRows(savedTickets.map(ticketRecordToRow));
+      hydratedJobIdRef.current = job.id;
+    }
+  }, [savedTickets, job.id]);
 
   const announce = useCallback((message: string, kind: 'success' | 'error' | 'info' = 'success') => {
     setNotice({ message, kind });
@@ -1142,19 +1196,30 @@ function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
     if (!mediaType) { announce(`${file.name} isn't supported. Use JPG, PNG, WEBP, or GIF.`, 'error'); return; }
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const preview = URL.createObjectURL(file);
-    setRows((cur) => [{ id, fileName: file.name, preview, status: 'Reading', extraction: emptyExtraction }, ...cur]);
+    setRows((cur) => [{ id, hasSourceImage: true, fileName: file.name, preview, status: 'Reading', extraction: emptyExtraction }, ...cur]);
     announce(`Reading ${file.name}…`, 'info');
+    let extraction: TicketExtraction | null = null;
+    let message = '';
     try {
       const imageData = await readFileAsBase64(file);
-      const extraction = await extractMutation.mutateAsync({ data: { fileName: file.name, mediaType, imageData } });
-      setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction, status: 'Processed' } : r));
-      announce(`${file.name} processed. Give the fields a quick look.`);
+      extraction = await extractMutation.mutateAsync({ data: { fileName: file.name, mediaType, imageData } });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Extraction did not complete.';
-      setRows((cur) => cur.map((r) => r.id === id ? { ...r, status: 'Failed', error: message } : r));
-      announce(`${file.name}: ${message}`, 'error');
+      message = err instanceof Error ? err.message : 'Extraction did not complete.';
     }
-  }, [announce, extractMutation, setRows]);
+    const status: RowStatus = extraction ? 'Processed' : 'Failed';
+    setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction: extraction ?? r.extraction, status, error: extraction ? undefined : message } : r));
+    try {
+      const created = await createTicket.mutateAsync({
+        jobId: job.id,
+        data: { fileName: file.name, status, error: extraction ? null : message, ...(extraction ?? emptyExtraction) },
+      });
+      setRows((cur) => cur.map((r) => r.id === id ? { ...r, serverId: created.id } : r));
+    } catch {
+      announce(`${file.name} processed but could not be saved. Refreshing will lose this row.`, 'error');
+    }
+    if (extraction) announce(`${file.name} processed. Give the fields a quick look.`);
+    else announce(`${file.name}: ${message}`, 'error');
+  }, [announce, createTicket, extractMutation, job.id]);
 
   const handleFiles = useCallback((files: FileList | File[]) => {
     Array.from(files).forEach((f) => void processFile(f));
@@ -1166,44 +1231,72 @@ function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
     setRows((cur) => cur.map((r) => r.id === id ? { ...r, status: 'Reading', error: undefined } : r));
     announce(`Retrying ${row.fileName}…`, 'info');
     void (async () => {
+      let extraction: TicketExtraction | null = null;
+      let message = '';
       try {
         const response = await fetch(row.preview);
         if (!response.ok) throw new Error('Source image is no longer available.');
         const blob = await response.blob();
         const imageData = await readFileAsBase64(blob);
         const mediaType = getSupportedMediaType(new File([blob], row.fileName, { type: blob.type })) ?? 'image/jpeg';
-        const extraction = await extractMutation.mutateAsync({ data: { fileName: row.fileName, mediaType, imageData } });
-        setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction, status: 'Processed', error: undefined } : r));
-        announce(`${row.fileName} processed on retry.`);
+        extraction = await extractMutation.mutateAsync({ data: { fileName: row.fileName, mediaType, imageData } });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Extraction did not complete.';
-        setRows((cur) => cur.map((r) => r.id === id ? { ...r, status: 'Failed', error: message } : r));
-        announce(`Retry failed for ${row.fileName}: ${message}`, 'error');
+        message = err instanceof Error ? err.message : 'Extraction did not complete.';
       }
+      const status: RowStatus = extraction ? 'Processed' : 'Failed';
+      setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction: extraction ?? r.extraction, status, error: extraction ? undefined : message } : r));
+      if (row.serverId) {
+        void updateTicket.mutateAsync({
+          jobId: job.id,
+          ticketId: row.serverId,
+          data: { status, error: extraction ? null : message, ...(extraction ?? {}) },
+        }).catch(() => announce('Could not save the retry result. Try again.', 'error'));
+      }
+      if (extraction) announce(`${row.fileName} processed on retry.`);
+      else announce(`Retry failed for ${row.fileName}: ${message}`, 'error');
     })();
-  }, [announce, extractMutation, rows, setRows]);
+  }, [announce, extractMutation, job.id, rows, updateTicket]);
 
   const updateField = useCallback((id: string, field: FieldKey, value: string) => {
     setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction: { ...r.extraction, [field]: value } } : r));
-  }, [setRows]);
+    const row = rows.find((r) => r.id === id);
+    if (row?.serverId) {
+      void updateTicket.mutateAsync({ jobId: job.id, ticketId: row.serverId, data: { [field]: value } })
+        .catch(() => announce('Could not save the change. Try again.', 'error'));
+    }
+  }, [announce, job.id, rows, updateTicket]);
 
   const deleteRow = useCallback((id: string) => {
     const row = rows.find((r) => r.id === id);
     setRows((cur) => cur.filter((r) => r.id !== id));
-    if (row) announce(`${row.fileName} removed.`, 'info');
-  }, [announce, rows, setRows]);
+    if (row) {
+      announce(`${row.fileName} removed.`, 'info');
+      if (row.serverId) {
+        void deleteTicket.mutateAsync({ jobId: job.id, ticketId: row.serverId })
+          .catch(() => announce('Could not delete on the server. Try refreshing.', 'error'));
+      }
+    }
+  }, [announce, deleteTicket, job.id, rows]);
 
   const addManualRow = useCallback(() => {
     const id = `manual-${Date.now()}`;
-    setRows((cur) => [{ id, fileName: 'Manual entry', preview: samplePreview(), status: 'Manual', extraction: emptyExtraction }, ...cur]);
+    setRows((cur) => [{ id, hasSourceImage: false, fileName: 'Manual entry', preview: samplePreview('MANUAL ENTRY'), status: 'Manual', extraction: emptyExtraction }, ...cur]);
     announce('Blank manual row added.');
-  }, [announce, setRows]);
+    createTicket.mutateAsync({ jobId: job.id, data: { fileName: 'Manual entry', status: 'Manual', ...emptyExtraction } })
+      .then((created) => setRows((cur) => cur.map((r) => r.id === id ? { ...r, serverId: created.id } : r)))
+      .catch(() => announce('Could not save the manual row. Refreshing will lose it.', 'error'));
+  }, [announce, createTicket, job.id]);
 
   const newBatch = useCallback(() => {
-    if (rows.length && !window.confirm('Start a new batch? This will clear the current register.')) return;
+    if (!rows.length) return;
+    if (!window.confirm(`Start a new batch? This will permanently delete all ${rows.length} row(s) in this job's register.`)) return;
+    const toDelete = rows.filter((r) => r.serverId);
     setRows(() => []);
     announce('New batch started.', 'info');
-  }, [announce, rows.length, setRows]);
+    void Promise.all(
+      toDelete.map((r) => deleteTicket.mutateAsync({ jobId: job.id, ticketId: r.serverId! }).catch(() => {})),
+    );
+  }, [announce, deleteTicket, job.id, rows]);
 
   const totals = useMemo(() => {
     const withWeight = rows.filter((r) => r.extraction.weight.trim()).length;
@@ -1321,6 +1414,16 @@ function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
 
             {/* Right: register table + actions */}
             <div className="min-w-0">
+              {ticketsLoading && !rows.length && (
+                <div className="mb-3 flex items-center gap-2 text-[12px] text-[hsl(var(--muted-foreground))]">
+                  <LoaderCircle size={14} className="animate-spin" /> Loading saved register…
+                </div>
+              )}
+              {ticketsError && (
+                <div className="mb-3 flex items-center gap-2 text-[12px] text-[hsl(var(--destructive))]">
+                  <AlertTriangle size={14} /> Could not load the saved register. Showing this session's data only.
+                </div>
+              )}
               <TicketRegister rows={rows} onChange={updateField} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
               <div className="mt-3.5 flex items-center justify-between gap-3">
                 <button
@@ -1368,11 +1471,6 @@ type NavState =
 
 function App() {
   const [nav, setNav] = useState<NavState>({ screen: 'home' });
-  const [rowsByJobId, setRowsByJobId] = useState<Record<number, TicketRow[]>>({});
-
-  const setJobRows = useCallback((jobId: number, updater: (rows: TicketRow[]) => TicketRow[]) => {
-    setRowsByJobId((prev) => ({ ...prev, [jobId]: updater(prev[jobId] ?? []) }));
-  }, []);
 
   if (nav.screen === 'home') {
     return (
@@ -1386,8 +1484,6 @@ function App() {
     <Register
       year={nav.year}
       job={nav.job}
-      rows={rowsByJobId[nav.job.id] ?? []}
-      setRows={(updater) => setJobRows(nav.job.id, updater)}
       onBackToJobs={() => setNav({ screen: 'home' })}
       onBackToYears={() => setNav({ screen: 'home' })}
     />
