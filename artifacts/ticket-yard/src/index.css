@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,500;10..48,600;10..48,700&family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=JetBrains+Mono:wght@400;700&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -44,49 +44,73 @@
   --color-chart-5: hsl(var(--chart-5));
   --font-sans: var(--app-font-sans);
   --font-mono: var(--app-font-mono);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
 }
 
 :root {
-  --background: 42 38% 95%;
-  --foreground: 222 32% 17%;
-  --border: 38 23% 84%;
-  --input: 38 23% 84%;
-  --ring: 34 93% 52%;
-  --card: 42 43% 98%;
-  --card-foreground: 222 32% 17%;
-  --card-border: 39 27% 87%;
-  --sidebar: 222 32% 17%;
-  --sidebar-foreground: 40 38% 91%;
-  --sidebar-border: 222 24% 25%;
-  --sidebar-primary: 34 93% 52%;
-  --sidebar-primary-foreground: 222 32% 17%;
-  --sidebar-accent: 222 25% 23%;
-  --sidebar-accent-foreground: 40 38% 91%;
-  --sidebar-ring: 34 93% 52%;
-  --popover: 42 43% 98%;
-  --popover-foreground: 222 32% 17%;
-  --primary: 34 93% 52%;
-  --primary-foreground: 222 32% 17%;
-  --secondary: 38 31% 89%;
-  --secondary-foreground: 222 32% 22%;
-  --muted: 39 28% 91%;
-  --muted-foreground: 218 13% 45%;
-  --accent: 168 38% 37%;
-  --accent-foreground: 42 43% 98%;
-  --destructive: 2 64% 49%;
-  --destructive-foreground: 42 43% 98%;
-  --chart-1: 34 93% 52%;
-  --chart-2: 168 38% 37%;
-  --chart-3: 222 32% 17%;
-  --chart-4: 2 64% 49%;
-  --chart-5: 39 63% 65%;
-  --app-font-sans: 'DM Sans', sans-serif;
-  --app-font-mono: 'Space Mono', monospace;
-  --radius: 0.75rem;
+  /* Core */
+  --background: 220 16% 95%;
+  --foreground: 220 22% 13%;
+  --border: 220 12% 87%;
+  --input: 220 12% 87%;
+  --ring: 2 73% 43%;
+
+  /* Cards */
+  --card: 0 0% 100%;
+  --card-foreground: 220 22% 13%;
+  --card-border: 220 10% 90%;
+
+  /* Popover */
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 22% 13%;
+  --popover-border: 220 10% 88%;
+
+  /* Primary — D.H. Griffin red */
+  --primary: 2 73% 43%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary */
+  --secondary: 220 10% 92%;
+  --secondary-foreground: 220 18% 24%;
+
+  /* Muted */
+  --muted: 220 10% 93%;
+  --muted-foreground: 220 8% 47%;
+
+  /* Accent — steel/charcoal */
+  --accent: 220 14% 34%;
+  --accent-foreground: 0 0% 100%;
+
+  /* Destructive */
+  --destructive: 2 68% 46%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Sidebar / Header — very dark charcoal */
+  --sidebar: 222 28% 10%;
+  --sidebar-foreground: 0 0% 86%;
+  --sidebar-border: 222 20% 18%;
+  --sidebar-primary: 2 73% 52%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 222 22% 16%;
+  --sidebar-accent-foreground: 0 0% 92%;
+  --sidebar-ring: 2 73% 52%;
+
+  /* Charts */
+  --chart-1: 2 73% 43%;
+  --chart-2: 220 14% 34%;
+  --chart-3: 220 22% 13%;
+  --chart-4: 2 68% 46%;
+  --chart-5: 32 85% 55%;
+
+  /* Typography */
+  --app-font-sans: 'Inter', sans-serif;
+  --app-font-mono: 'JetBrains Mono', monospace;
+  --radius: 0.5rem;
+
+  /* Border color shorthands */
   --primary-border: hsl(var(--primary));
   --secondary-border: hsl(var(--secondary));
   --muted-border: hsl(var(--muted));
@@ -95,43 +119,38 @@
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-accent-border: hsl(var(--sidebar-accent));
   --tracking-normal: 0em;
-  --elevate-1: rgba(34, 41, 58, 0.04);
-  --elevate-2: rgba(34, 41, 58, 0.08);
+  --elevate-1: rgba(20, 24, 36, 0.04);
+  --elevate-2: rgba(20, 24, 36, 0.08);
 }
 
 .dark {
-  --background: 222 32% 12%;
-  --foreground: 40 38% 91%;
-  --border: 222 24% 27%;
-  --input: 222 24% 27%;
-  --card: 222 29% 16%;
-  --card-foreground: 40 38% 91%;
-  --card-border: 222 24% 27%;
-  --sidebar: 222 36% 9%;
-  --sidebar-foreground: 40 38% 91%;
-  --sidebar-border: 222 24% 20%;
-  --sidebar-primary: 34 93% 52%;
-  --sidebar-primary-foreground: 222 32% 17%;
-  --sidebar-accent: 222 25% 17%;
-  --sidebar-accent-foreground: 40 38% 91%;
-  --sidebar-ring: 34 93% 52%;
-  --popover: 222 29% 16%;
-  --popover-foreground: 40 38% 91%;
-  --primary: 34 93% 52%;
-  --primary-foreground: 222 32% 17%;
-  --secondary: 222 25% 24%;
-  --secondary-foreground: 40 38% 91%;
-  --muted: 222 25% 21%;
-  --muted-foreground: 218 14% 68%;
-  --accent: 168 38% 43%;
-  --accent-foreground: 222 32% 12%;
-  --destructive: 2 64% 57%;
-  --destructive-foreground: 40 38% 91%;
-  --chart-1: 34 93% 52%;
-  --chart-2: 168 38% 43%;
-  --chart-3: 40 38% 91%;
-  --chart-4: 2 64% 57%;
-  --chart-5: 39 63% 65%;
+  --background: 222 28% 10%;
+  --foreground: 0 0% 90%;
+  --border: 222 20% 22%;
+  --input: 222 20% 22%;
+  --card: 222 24% 14%;
+  --card-foreground: 0 0% 90%;
+  --card-border: 222 20% 22%;
+  --popover: 222 24% 14%;
+  --popover-foreground: 0 0% 90%;
+  --popover-border: 222 20% 22%;
+  --primary: 2 73% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 222 20% 20%;
+  --secondary-foreground: 0 0% 88%;
+  --muted: 222 20% 18%;
+  --muted-foreground: 220 10% 58%;
+  --accent: 220 14% 48%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 2 68% 54%;
+  --destructive-foreground: 0 0% 100%;
+  --sidebar: 222 32% 7%;
+  --sidebar-foreground: 0 0% 85%;
+  --sidebar-border: 222 22% 15%;
+  --sidebar-primary: 2 73% 55%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 222 24% 13%;
+  --sidebar-accent-foreground: 0 0% 90%;
   --primary-border: hsl(var(--primary));
   --secondary-border: hsl(var(--secondary));
   --muted-border: hsl(var(--muted));
@@ -148,59 +167,64 @@
 }
 
 @layer utilities {
-  .app-noise::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    opacity: 0.035;
-    z-index: 50;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.36'/%3E%3C/svg%3E");
-  }
-  .font-display { font-family: 'Bricolage Grotesque', sans-serif; }
-  .font-mono-app { font-family: 'Space Mono', monospace; }
-  .animate-rise { animation: rise-in .45s cubic-bezier(.2,.8,.2,1) both; }
-  .animate-fade { animation: fade-in .3s ease-out both; }
-  .delay-1 { animation-delay: .06s; }
-  .delay-2 { animation-delay: .12s; }
-  .delay-3 { animation-delay: .18s; }
-  .delay-4 { animation-delay: .24s; }
+  .font-mono-app { font-family: 'JetBrains Mono', monospace; }
+  .animate-rise { animation: rise-in .38s cubic-bezier(.2,.85,.2,1) both; }
+  .animate-fade { animation: fade-in .25s ease-out both; }
+  .delay-1 { animation-delay: .05s; }
+  .delay-2 { animation-delay: .1s; }
+  .delay-3 { animation-delay: .15s; }
+  .delay-4 { animation-delay: .2s; }
 }
 
-@keyframes rise-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
+/* Ticket field — inline editable cell */
 .ticket-field {
   width: 100%;
   min-width: 0;
   border: 1px solid transparent;
-  border-radius: .45rem;
+  border-radius: .35rem;
   background: transparent;
-  padding: .55rem .62rem;
+  padding: .5rem .6rem;
   color: hsl(var(--foreground));
-  font-size: .82rem;
+  font-size: .81rem;
   outline: none;
 }
-.ticket-field:hover { background: hsl(var(--muted) / .48); }
-.ticket-field:focus { background: hsl(var(--card)); border-color: hsl(var(--primary) / .7); box-shadow: 0 0 0 3px hsl(var(--primary) / .12); }
-.ticket-table-row { border-top: 1px solid hsl(var(--border) / .72); }
-.ticket-table-row:hover { background: hsl(var(--muted) / .28); }
+.ticket-field:hover { background: hsl(var(--muted) / .55); }
+.ticket-field:focus { background: hsl(var(--card)); border-color: hsl(var(--primary) / .65); box-shadow: 0 0 0 3px hsl(var(--primary) / .1); }
+
+/* Table row */
+.ticket-table-row { border-top: 1px solid hsl(var(--border) / .7); }
+.ticket-table-row:hover { background: hsl(var(--muted) / .32); }
+
+/* Drop zone */
 .drop-zone { border: 1.5px dashed hsl(var(--border)); background: hsl(var(--card) / .7); }
-.drop-zone.is-dragging { border-color: hsl(var(--primary)); background: hsl(var(--primary) / .09); transform: translateY(-2px); }
-.action-icon { transition: transform .18s ease, opacity .18s ease; }
+.drop-zone.is-dragging { border-color: hsl(var(--primary)); background: hsl(var(--primary) / .06); transform: translateY(-2px); }
+
+/* Action icon */
+.action-icon { transition: transform .15s ease, opacity .15s ease; }
 .action-icon:hover { transform: translateY(-1px); }
 
+/* Job row left accent */
+.job-row { position: relative; }
+.job-row::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 10%; bottom: 10%;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: hsl(var(--primary));
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.job-row:hover::before { opacity: 1; }
+
 @media (max-width: 900px) {
-  .desktop-nav { display: none; }
   .workspace-grid { grid-template-columns: 1fr !important; }
   .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 }
 @media (max-width: 640px) {
   .stats-grid { gap: .5rem !important; }
-  .stat-card { padding: .8rem !important; }
-  .stat-card .stat-value { font-size: 1.35rem !important; }
-  .mobile-stack { flex-direction: column; align-items: stretch !important; }
-  .mobile-stack > * { width: 100%; justify-content: center; }
-  .ticket-register-head { flex-direction: column; align-items: stretch !important; gap: .75rem; }
   .ticket-table { min-width: 900px; }
 }
