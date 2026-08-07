@@ -160,3 +160,140 @@ export const DeleteJobParams = zod.object({
 export const DeleteJobResponse = zod.void()
 
 
+/**
+ * @summary List ticket register rows for a job
+ */
+export const ListTicketsParams = zod.object({
+  "jobId": zod.coerce.number().int()
+})
+
+export const ListTicketsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int(),
+  "fileName": zod.string(),
+  "status": zod.enum(['Reading', 'Processed', 'Failed', 'Manual']),
+  "error": zod.string().nullable(),
+  "documentType": zod.string(),
+  "vendor": zod.string(),
+  "ticketNumber": zod.string(),
+  "invoiceNumber": zod.string(),
+  "purchaseOrder": zod.string(),
+  "jobNumber": zod.string(),
+  "date": zod.string(),
+  "weight": zod.string(),
+  "amount": zod.string(),
+  "description": zod.string(),
+  "wasteType": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListTicketsResponse = zod.array(ListTicketsResponseItem)
+
+
+/**
+ * @summary Add a ticket register row to a job
+ */
+export const CreateTicketRecordParams = zod.object({
+  "jobId": zod.coerce.number().int()
+})
+
+
+
+
+export const CreateTicketRecordBody = zod.object({
+  "fileName": zod.string().min(1),
+  "status": zod.enum(['Reading', 'Processed', 'Failed', 'Manual']),
+  "error": zod.string().nullish(),
+  "documentType": zod.string().optional(),
+  "vendor": zod.string().optional(),
+  "ticketNumber": zod.string().optional(),
+  "invoiceNumber": zod.string().optional(),
+  "purchaseOrder": zod.string().optional(),
+  "jobNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "weight": zod.string().optional(),
+  "amount": zod.string().optional(),
+  "description": zod.string().optional(),
+  "wasteType": zod.string().optional()
+})
+
+export const CreateTicketRecordResponse = zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int(),
+  "fileName": zod.string(),
+  "status": zod.enum(['Reading', 'Processed', 'Failed', 'Manual']),
+  "error": zod.string().nullable(),
+  "documentType": zod.string(),
+  "vendor": zod.string(),
+  "ticketNumber": zod.string(),
+  "invoiceNumber": zod.string(),
+  "purchaseOrder": zod.string(),
+  "jobNumber": zod.string(),
+  "date": zod.string(),
+  "weight": zod.string(),
+  "amount": zod.string(),
+  "description": zod.string(),
+  "wasteType": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update fields on a ticket register row
+ */
+export const UpdateTicketRecordParams = zod.object({
+  "jobId": zod.coerce.number().int(),
+  "ticketId": zod.coerce.number().int()
+})
+
+
+
+
+export const UpdateTicketRecordBody = zod.object({
+  "fileName": zod.string().min(1).optional(),
+  "status": zod.enum(['Reading', 'Processed', 'Failed', 'Manual']).optional(),
+  "error": zod.string().nullish(),
+  "documentType": zod.string().optional(),
+  "vendor": zod.string().optional(),
+  "ticketNumber": zod.string().optional(),
+  "invoiceNumber": zod.string().optional(),
+  "purchaseOrder": zod.string().optional(),
+  "jobNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "weight": zod.string().optional(),
+  "amount": zod.string().optional(),
+  "description": zod.string().optional(),
+  "wasteType": zod.string().optional()
+})
+
+export const UpdateTicketRecordResponse = zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int(),
+  "fileName": zod.string(),
+  "status": zod.enum(['Reading', 'Processed', 'Failed', 'Manual']),
+  "error": zod.string().nullable(),
+  "documentType": zod.string(),
+  "vendor": zod.string(),
+  "ticketNumber": zod.string(),
+  "invoiceNumber": zod.string(),
+  "purchaseOrder": zod.string(),
+  "jobNumber": zod.string(),
+  "date": zod.string(),
+  "weight": zod.string(),
+  "amount": zod.string(),
+  "description": zod.string(),
+  "wasteType": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a ticket register row
+ */
+export const DeleteTicketRecordParams = zod.object({
+  "jobId": zod.coerce.number().int(),
+  "ticketId": zod.coerce.number().int()
+})
+
+export const DeleteTicketRecordResponse = zod.void()
+
+

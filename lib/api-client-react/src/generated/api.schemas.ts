@@ -91,3 +91,69 @@ export interface UpdateJobInput {
   jobName: string;
 }
 
+export type TicketRecordStatus = typeof TicketRecordStatus[keyof typeof TicketRecordStatus];
+
+
+export const TicketRecordStatus = {
+  Reading: 'Reading',
+  Processed: 'Processed',
+  Failed: 'Failed',
+  Manual: 'Manual',
+} as const;
+
+export interface TicketRecord {
+  id: number;
+  jobId: number;
+  fileName: string;
+  status: TicketRecordStatus;
+  error: string | null;
+  documentType: string;
+  vendor: string;
+  ticketNumber: string;
+  invoiceNumber: string;
+  purchaseOrder: string;
+  jobNumber: string;
+  date: string;
+  weight: string;
+  amount: string;
+  description: string;
+  wasteType: string;
+  createdAt: string;
+}
+
+export interface CreateTicketRecordInput {
+  /** @minLength 1 */
+  fileName: string;
+  status: TicketRecordStatus;
+  error?: string | null;
+  documentType?: string;
+  vendor?: string;
+  ticketNumber?: string;
+  invoiceNumber?: string;
+  purchaseOrder?: string;
+  jobNumber?: string;
+  date?: string;
+  weight?: string;
+  amount?: string;
+  description?: string;
+  wasteType?: string;
+}
+
+export interface UpdateTicketRecordInput {
+  /** @minLength 1 */
+  fileName?: string;
+  status?: TicketRecordStatus;
+  error?: string | null;
+  documentType?: string;
+  vendor?: string;
+  ticketNumber?: string;
+  invoiceNumber?: string;
+  purchaseOrder?: string;
+  jobNumber?: string;
+  date?: string;
+  weight?: string;
+  amount?: string;
+  description?: string;
+  wasteType?: string;
+}
+

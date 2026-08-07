@@ -16,6 +16,8 @@ tags:
     description: Year management
   - name: jobs
     description: Job management
+  - name: ticket-records
+    description: Persisted ticket register rows for a job
 paths:
   /healthz:
     get:
@@ -202,6 +204,104 @@ paths:
           description: Deleted
         "404":
           description: Job not found
+  /jobs/{jobId}/tickets:
+    get:
+      operationId: listTickets
+      tags: [ticket-records]
+      summary: List ticket register rows for a job
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of ticket register rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TicketRecord"
+        "404":
+          description: Job not found
+    post:
+      operationId: createTicketRecord
+      tags: [ticket-records]
+      summary: Add a ticket register row to a job
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketRecordInput"
+      responses:
+        "201":
+          description: Created ticket register row
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketRecord"
+        "404":
+          description: Job not found
+  /jobs/{jobId}/tickets/{ticketId}:
+    patch:
+      operationId: updateTicketRecord
+      tags: [ticket-records]
+      summary: Update fields on a ticket register row
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTicketRecordInput"
+      responses:
+        "200":
+          description: Updated ticket register row
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketRecord"
+        "404":
+          description: Ticket register row not found
+    delete:
+      operationId: deleteTicketRecord
+      tags: [ticket-records]
+      summary: Delete a ticket register row
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Ticket register row not found
 components:
   schemas:
     HealthStatus:
@@ -333,3 +433,136 @@ components:
       required:
         - jobNumber
         - jobName
+    TicketRecordStatus:
+      type: string
+      enum:
+        - Reading
+        - Processed
+        - Failed
+        - Manual
+    TicketRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        fileName:
+          type: string
+        status:
+          $ref: "#/components/schemas/TicketRecordStatus"
+        error:
+          type: string
+          nullable: true
+        documentType:
+          type: string
+        vendor:
+          type: string
+        ticketNumber:
+          type: string
+        invoiceNumber:
+          type: string
+        purchaseOrder:
+          type: string
+        jobNumber:
+          type: string
+        date:
+          type: string
+        weight:
+          type: string
+        amount:
+          type: string
+        description:
+          type: string
+        wasteType:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - jobId
+        - fileName
+        - status
+        - error
+        - documentType
+        - vendor
+        - ticketNumber
+        - invoiceNumber
+        - purchaseOrder
+        - jobNumber
+        - date
+        - weight
+        - amount
+        - description
+        - wasteType
+        - createdAt
+    CreateTicketRecordInput:
+      type: object
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+        status:
+          $ref: "#/components/schemas/TicketRecordStatus"
+        error:
+          type: string
+          nullable: true
+        documentType:
+          type: string
+        vendor:
+          type: string
+        ticketNumber:
+          type: string
+        invoiceNumber:
+          type: string
+        purchaseOrder:
+          type: string
+        jobNumber:
+          type: string
+        date:
+          type: string
+        weight:
+          type: string
+        amount:
+          type: string
+        description:
+          type: string
+        wasteType:
+          type: string
+      required:
+        - fileName
+        - status
+    UpdateTicketRecordInput:
+      type: object
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+        status:
+          $ref: "#/components/schemas/TicketRecordStatus"
+        error:
+          type: string
+          nullable: true
+        documentType:
+          type: string
+        vendor:
+          type: string
+        ticketNumber:
+          type: string
+        invoiceNumber:
+          type: string
+        purchaseOrder:
+          type: string
+        jobNumber:
+          type: string
+        date:
+          type: string
+        weight:
+          type: string
+        amount:
+          type: string
+        description:
+          type: string
+        wasteType:
+          type: string
