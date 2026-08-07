@@ -470,30 +470,38 @@ function YearCardWidget({ year, isSelected, onSelect, onDelete }: {
     <div className="group relative shrink-0">
       <button
         onClick={onSelect}
-        className={`relative flex min-w-[130px] flex-col rounded-xl border bg-white p-5 text-left shadow-sm transition hover:shadow-md ${
+        className={`relative flex w-[158px] flex-col rounded-xl border bg-white px-6 py-5 text-left shadow-sm transition hover:shadow-md ${
           isSelected
-            ? 'border-[hsl(var(--primary))] ring-2 ring-[hsl(var(--primary)/.15)]'
-            : 'border-[hsl(var(--card-border))] hover:border-[hsl(var(--primary)/.4)]'
+            ? 'border-[hsl(var(--primary)/.4)] shadow-md'
+            : 'border-[hsl(var(--card-border))] hover:border-[hsl(var(--primary)/.3)]'
         }`}
       >
+        {/* Active: red bottom accent bar */}
         {isSelected && (
           <span className="absolute bottom-0 left-0 right-0 h-[3px] rounded-b-xl bg-[hsl(var(--primary))]" />
         )}
-        <CalendarDays size={22} className={isSelected ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'} />
-        <div className={`mt-2 font-mono-app text-[2.1rem] font-bold leading-none tracking-tight ${isSelected ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--foreground))]'}`}>
+        {/* Calendar icon */}
+        <CalendarDays
+          size={26}
+          strokeWidth={1.5}
+          className={isSelected ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground)/.6)]'}
+        />
+        {/* Year number */}
+        <div className={`mt-3 text-[2.6rem] font-bold leading-none tracking-tight ${
+          isSelected ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--foreground))]'
+        }`}>
           {year.year}
         </div>
-        <div className="mt-1.5 text-[12px] text-[hsl(var(--muted-foreground))]">
+        {/* Job count */}
+        <div className="mt-2 text-[12px] text-[hsl(var(--muted-foreground))]">
           {countLoading ? '…' : `${jobs.length} ${jobs.length === 1 ? 'Job' : 'Jobs'}`}
         </div>
-        <div className="mt-4">
-          <span className={`flex h-6 w-6 items-center justify-center rounded-full border text-[11px] transition ${
-            isSelected
-              ? 'border-[hsl(var(--primary))] text-[hsl(var(--primary))]'
-              : 'border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]'
-          }`}>
-            <ArrowRight size={11} />
-          </span>
+        {/* Arrow */}
+        <div className="mt-5">
+          <ArrowRight
+            size={18}
+            className={isSelected ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground)/.5)]'}
+          />
         </div>
       </button>
       <button
@@ -814,68 +822,37 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
           />
         )}
 
-        {/* Construction imagery + red footer strip */}
-        <div className="mt-auto">
-          {/* Dark gradient with SVG construction silhouette */}
-          <div className="relative h-[120px] overflow-hidden bg-gradient-to-t from-black/30 to-transparent">
-            <svg
-              className="absolute bottom-0 left-0 w-full opacity-[.18]"
-              viewBox="0 0 240 80"
-              preserveAspectRatio="xMidYMax meet"
-              aria-hidden="true"
-            >
-              {/* Buildings */}
-              <rect x="168" y="22" width="14" height="58" fill="white" />
-              <rect x="185" y="12" width="18" height="68" fill="white" />
-              <rect x="206" y="28" width="13" height="52" fill="white" />
-              <rect x="222" y="34" width="16" height="46" fill="white" />
-              {/* Crane / excavator arm */}
-              <line x1="50" y1="75" x2="80" y2="18" stroke="white" strokeWidth="5" strokeLinecap="round" />
-              <line x1="80" y1="18" x2="120" y2="38" stroke="white" strokeWidth="3" strokeLinecap="round" />
-              <line x1="80" y1="18" x2="80" y2="0" stroke="white" strokeWidth="2" strokeLinecap="round" />
-              <line x1="80" y1="0" x2="120" y2="18" stroke="white" strokeWidth="2" strokeLinecap="round" />
-              {/* Truck body */}
-              <rect x="8" y="55" width="48" height="20" rx="2" fill="white" />
-              <rect x="4" y="60" width="16" height="15" rx="1" fill="white" />
-              <circle cx="16" cy="77" r="5" fill="white" />
-              <circle cx="44" cy="77" r="5" fill="white" />
-            </svg>
-          </div>
-          {/* Red strip */}
-          <div className="bg-[hsl(var(--primary))] px-5 py-3">
-            <p className="text-[9.5px] font-semibold uppercase tracking-[.09em] text-white/80">
-              Safety · Integrity · Performance · People
-            </p>
-          </div>
-        </div>
+        {/* Spacer — keeps sidebar clean and minimal */}
+        <div className="flex-1" />
       </aside>
 
       {/* ── Main content ──────────────────────────────────────────── */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-white">
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-[hsl(var(--background))]">
 
         {/* Status + avatar — inline top-right, no separate header bar */}
-        <div className="flex justify-end items-center gap-3 px-8 pt-6 pb-0 shrink-0">
+        <div className="flex justify-end items-center gap-3 px-8 pt-5 pb-0 shrink-0">
           <ApiStatus theme="light" />
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[11px] font-bold text-white">MR</div>
         </div>
 
         {/* Hero */}
-        <div className="px-8 pt-3 pb-7 shrink-0">
-          <h1 className="text-[2rem] font-bold tracking-tight text-[hsl(var(--foreground))]">
+        <div className="px-8 pt-4 pb-6 shrink-0">
+          <h1 className="text-[1.85rem] font-bold tracking-tight text-[hsl(var(--foreground))]">
             Welcome to{' '}
             <span className="text-[hsl(var(--primary))]">TicketYard</span>
           </h1>
-          <p className="mt-1.5 text-[14px] text-[hsl(var(--muted-foreground))]">
+          <p className="mt-1 text-[13px] text-[hsl(var(--muted-foreground))]">
             Select a year to view your jobs
           </p>
         </div>
 
         {/* ── SELECT A YEAR ─────────────────────────────────────── */}
-        <div className="px-8 pb-8 shrink-0">
-          <div className="mb-4 border-b-2 border-[hsl(var(--primary))] pb-1 w-fit">
+        <div className="px-8 pb-7 shrink-0">
+          <div className="mb-4 flex items-center gap-3">
             <h2 className="text-[11px] font-bold uppercase tracking-[.13em] text-[hsl(var(--primary))]">
               Select a Year
             </h2>
+            <div className="flex-1 h-px bg-[hsl(var(--primary)/.2)]" />
           </div>
 
           {yearsError && (
@@ -884,7 +861,7 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
             </p>
           )}
 
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-3">
             {yearsLoading && (
               <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
                 <LoaderCircle size={16} className="animate-spin" /> Loading…
@@ -901,13 +878,13 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
               />
             ))}
 
-            {/* Add Year — dashed card */}
+            {/* Add Year — dashed card, matches year card height */}
             <button
               onClick={() => setYearModal({ open: true, value: String(new Date().getFullYear()), error: '' })}
-              className="flex min-w-[130px] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[hsl(var(--primary)/.35)] bg-white py-6 px-5 transition hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/.03)]"
+              className="flex w-[158px] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[hsl(var(--primary)/.3)] bg-white/60 py-5 px-6 transition hover:border-[hsl(var(--primary)/.6)] hover:bg-white"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-white shadow-sm">
-                <Plus size={22} />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-white shadow-sm">
+                <Plus size={20} />
               </div>
               <span className="text-[13px] font-semibold text-[hsl(var(--primary))]">Add Year</span>
             </button>
@@ -917,12 +894,11 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
         {/* ── RECENT ACTIVITY ───────────────────────────────────── */}
         {selectedYear ? (
           <div className="flex-1 px-8 pb-8 animate-rise">
-            <div className="mb-4">
-              <div className="border-b-2 border-[hsl(var(--primary))] pb-1 w-fit">
-                <h2 className="text-[11px] font-bold uppercase tracking-[.13em] text-[hsl(var(--primary))]">
-                  Recent Activity
-                </h2>
-              </div>
+            <div className="mb-4 flex items-center gap-3">
+              <h2 className="text-[11px] font-bold uppercase tracking-[.13em] text-[hsl(var(--primary))]">
+                Recent Activity
+              </h2>
+              <div className="flex-1 h-px bg-[hsl(var(--primary)/.2)]" />
             </div>
             <RecentActivityPanel
               key={selectedYear.id}
@@ -943,9 +919,9 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
           )
         )}
 
-        {/* Red footer */}
+        {/* Red footer — full width across bottom of main area */}
         <footer className="mt-auto shrink-0 bg-[hsl(var(--primary))] px-8 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[11px] font-medium text-white/85">
+          <div className="flex items-center gap-2 text-[11px] font-medium text-white/90">
             <ShieldCheck size={13} /> Safety · Integrity · Performance · People
           </div>
           <span className="text-[11px] text-white/70">© {new Date().getFullYear()} D.H. Griffin Companies</span>
