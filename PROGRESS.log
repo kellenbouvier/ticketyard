@@ -1,2 +1,4 @@
 2026-08-07 Phase 1 audit complete: mapped architecture, got app running end-to-end locally (db push, build, dev servers), reproduced and documented Critical/High/Medium/Low findings, wrote AUDIT.md.
 2026-08-07 Fixed pnpm-workspace.yaml allowBuilds placeholder that was blocking `pnpm install` entirely.
+2026-08-07 Fixed H-1 (build required PORT/BASE_PATH) and H-2 (no dev proxy for /api) in both Vite configs; verified clean workspace build and a working two-process local dev setup.
+2026-08-07 Fixed C-1: rewrote the OCR ticket/invoice field parser to use genuine label/shape-anchored extraction instead of hardcoded fixture literals; fixed the root-cause broken regex and the "Customer" vendor-synonym bug; verified against all 3 real fixtures + rewrote regression test.
