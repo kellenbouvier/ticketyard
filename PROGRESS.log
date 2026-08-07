@@ -1,0 +1,2 @@
+2026-08-07 Phase 1 audit complete: mapped architecture, got app running end-to-end locally (db push, build, dev servers), reproduced and documented Critical/High/Medium/Low findings, wrote AUDIT.md.
+2026-08-07 Fixed pnpm-workspace.yaml allowBuilds placeholder that was blocking `pnpm install` entirely.
