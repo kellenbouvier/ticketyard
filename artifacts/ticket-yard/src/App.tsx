@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   ArrowDownToLine,
   ArrowLeft,
+  ArrowRight,
   Briefcase,
   CalendarDays,
   Check,
@@ -29,8 +30,10 @@ import {
   CircleX,
   ClipboardList,
   CloudUpload,
+  ExternalLink,
   FileImage,
   HardHat,
+  Home,
   Inbox,
   LoaderCircle,
   Menu,
@@ -457,6 +460,261 @@ function JobPanel({
   );
 }
 
+// ─── Year card with live job count ───────────────────────────────────────────
+
+function YearCardWidget({ year, isSelected, onSelect, onDelete }: {
+  year: Year; isSelected: boolean; onSelect: () => void; onDelete: () => void;
+}) {
+  const { data: jobs = [], isLoading: countLoading } = useListJobs(year.id);
+  return (
+    <div className="group relative shrink-0">
+      <button
+        onClick={onSelect}
+        className={`relative flex min-w-[130px] flex-col rounded-xl border bg-white p-5 text-left shadow-sm transition hover:shadow-md ${
+          isSelected
+            ? 'border-[hsl(var(--primary))] ring-2 ring-[hsl(var(--primary)/.15)]'
+            : 'border-[hsl(var(--card-border))] hover:border-[hsl(var(--primary)/.4)]'
+        }`}
+      >
+        {isSelected && (
+          <span className="absolute bottom-0 left-0 right-0 h-[3px] rounded-b-xl bg-[hsl(var(--primary))]" />
+        )}
+        <CalendarDays size={22} className={isSelected ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'} />
+        <div className={`mt-2 font-mono-app text-[2.1rem] font-bold leading-none tracking-tight ${isSelected ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--foreground))]'}`}>
+          {year.year}
+        </div>
+        <div className="mt-1.5 text-[12px] text-[hsl(var(--muted-foreground))]">
+          {countLoading ? '…' : `${jobs.length} ${jobs.length === 1 ? 'Job' : 'Jobs'}`}
+        </div>
+        <div className="mt-4">
+          <span className={`flex h-6 w-6 items-center justify-center rounded-full border text-[11px] transition ${
+            isSelected
+              ? 'border-[hsl(var(--primary))] text-[hsl(var(--primary))]'
+              : 'border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]'
+          }`}>
+            <ArrowRight size={11} />
+          </span>
+        </div>
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        title={`Remove ${year.year}`}
+        className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-[hsl(var(--destructive))] text-white shadow group-hover:flex"
+      >
+        <X size={9} strokeWidth={2.5} />
+      </button>
+    </div>
+  );
+}
+
+// ─── Sidebar recent jobs ──────────────────────────────────────────────────────
+
+function SidebarRecentJobs({ yearId, onOpen }: { yearId: number; onOpen: (job: Job) => void }) {
+  const { data: jobs = [] } = useListJobs(yearId);
+  const recent = jobs.slice(0, 3);
+  if (!recent.length) return null;
+  return (
+    <div className="px-3 mt-5">
+      <div className="mb-2 px-2 text-[9px] font-bold uppercase tracking-[.14em] text-white/30">Recent Jobs</div>
+      <div className="space-y-0.5">
+        {recent.map((job) => (
+          <button
+            key={job.id}
+            onClick={() => onOpen(job)}
+            className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition hover:bg-[hsl(var(--sidebar-accent))]"
+          >
+            <CalendarDays size={13} className="mt-0.5 shrink-0 text-white/30" />
+            <div className="min-w-0">
+              <div className="font-mono-app text-[10px] font-bold text-[hsl(var(--sidebar-primary))]">{job.jobNumber}</div>
+              <div className="truncate text-[10px] leading-4 text-white/40">{job.jobName}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Recent Activity Panel (dashboard job table with full CRUD) ───────────────
+
+function RecentActivityPanel({ year, onOpen, announce }: {
+  year: Year;
+  onOpen: (job: Job) => void;
+  announce: (msg: string, kind?: 'success' | 'error' | 'info') => void;
+}) {
+  const qc = useQueryClient();
+  const { data: jobs = [], isLoading, isError } = useListJobs(year.id);
+  const createJob = useCreateJob();
+  const updateJob = useUpdateJob();
+  const deleteJob = useDeleteJob();
+  const [modal, setModal] = useState<JobModal>({ open: false });
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: getListJobsQueryKey(year.id) });
+
+  const handleSaveJob = async () => {
+    if (!modal.open) return;
+    const num = modal.jobNumber.trim();
+    const name = modal.jobName.trim();
+    if (!num) { setModal({ ...modal, error: 'Job Number is required.' }); return; }
+    if (!name) { setModal({ ...modal, error: 'Job Name is required.' }); return; }
+    try {
+      if (modal.mode === 'add') {
+        await createJob.mutateAsync({ yearId: year.id, data: { jobNumber: num, jobName: name } });
+        announce(`Job ${num} added.`);
+      } else {
+        await updateJob.mutateAsync({ yearId: year.id, jobId: modal.job.id, data: { jobNumber: num, jobName: name } });
+        announce(`Job ${num} updated.`);
+      }
+      await invalidate();
+      setModal({ open: false });
+    } catch {
+      setModal({ ...modal, error: 'Could not save job. Try again.' });
+    }
+  };
+
+  const handleDeleteJob = async (job: Job) => {
+    if (!window.confirm(`Remove job ${job.jobNumber} – ${job.jobName}?\n\nThis cannot be undone.`)) return;
+    try {
+      await deleteJob.mutateAsync({ yearId: year.id, jobId: job.id });
+      await invalidate();
+      announce(`${job.jobNumber} removed.`, 'info');
+    } catch {
+      announce('Could not remove job. Try again.', 'error');
+    }
+  };
+
+  return (
+    <>
+      <div className="overflow-hidden rounded-xl border border-[hsl(var(--card-border))] bg-white shadow-sm">
+        {/* Panel action bar */}
+        <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-6 py-3">
+          <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+            {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'} in {year.year}
+          </span>
+          <button
+            onClick={() => setModal({ open: true, mode: 'add', jobNumber: '', jobName: '', error: '' })}
+            className="flex items-center gap-1.5 rounded-md bg-[hsl(var(--primary))] px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-[hsl(var(--primary)/.9)] active:scale-95"
+          >
+            <Plus size={13} /> Add Job
+          </button>
+        </div>
+
+        {/* Table column headers */}
+        <div className="grid grid-cols-[40px_180px_1fr_160px_90px_100px] items-center gap-4 border-b border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] px-6 py-2.5 text-[10px] font-semibold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">
+          <div />
+          <div>Job Number</div>
+          <div>Job Name</div>
+          <div>Created</div>
+          <div className="text-right">Records</div>
+          <div />
+        </div>
+
+        {isLoading && (
+          <div className="flex items-center justify-center py-14">
+            <LoaderCircle size={20} className="animate-spin text-[hsl(var(--primary))]" />
+          </div>
+        )}
+        {isError && (
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-[hsl(var(--destructive))]">
+            <AlertTriangle size={16} /> Could not load jobs.
+          </div>
+        )}
+        {!isLoading && !isError && jobs.length === 0 && (
+          <div className="flex flex-col items-center py-14 text-center">
+            <Briefcase size={24} className="text-[hsl(var(--muted-foreground)/.5)]" />
+            <p className="mt-3 text-[13px] font-semibold">No jobs for {year.year}</p>
+            <p className="mt-1 text-[12px] text-[hsl(var(--muted-foreground))]">Add your first job to get started.</p>
+          </div>
+        )}
+
+        {jobs.map((job) => (
+          <div
+            key={job.id}
+            className="group grid grid-cols-[40px_180px_1fr_160px_90px_100px] items-center gap-4 border-t border-[hsl(var(--border)/.5)] px-6 py-3.5 transition hover:bg-[hsl(var(--muted)/.25)]"
+          >
+            <div className="flex items-center justify-center">
+              <CalendarDays size={15} className="text-[hsl(var(--muted-foreground)/.45)]" />
+            </div>
+            <div>
+              <span className="font-mono-app text-[11px] font-bold tracking-wider text-[hsl(var(--primary))]">
+                {job.jobNumber}
+              </span>
+            </div>
+            <div className="min-w-0 truncate text-[13px] text-[hsl(var(--foreground))]">{job.jobName}</div>
+            <div className="text-[12px] text-[hsl(var(--muted-foreground))]">—</div>
+            <div className="text-right font-mono-app text-[12px] text-[hsl(var(--muted-foreground))]">—</div>
+            <div className="flex items-center justify-end gap-1">
+              <button
+                onClick={() => setModal({ open: true, mode: 'edit', job, jobNumber: job.jobNumber, jobName: job.jobName, error: '' })}
+                title="Edit"
+                className="rounded p-1.5 text-[hsl(var(--muted-foreground))] opacity-0 transition hover:text-[hsl(var(--foreground))] group-hover:opacity-100"
+              >
+                <Pencil size={12} />
+              </button>
+              <button
+                onClick={() => void handleDeleteJob(job)}
+                title="Delete"
+                className="rounded p-1.5 text-[hsl(var(--muted-foreground))] opacity-0 transition hover:text-[hsl(var(--destructive))] group-hover:opacity-100"
+              >
+                <Trash2 size={12} />
+              </button>
+              <button
+                onClick={() => onOpen(job)}
+                className="rounded border border-[hsl(var(--primary)/.5)] px-3 py-1 text-[11px] font-semibold text-[hsl(var(--primary))] transition hover:bg-[hsl(var(--primary))] hover:text-white"
+              >
+                Open
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {/* View All Jobs footer */}
+        {jobs.length > 0 && (
+          <div className="flex justify-center border-t border-[hsl(var(--border))] py-4">
+            <button className="flex items-center gap-2 rounded-md border border-[hsl(var(--primary)/.4)] px-5 py-1.5 text-[12px] font-semibold text-[hsl(var(--primary))] transition hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/.05)]">
+              <ExternalLink size={13} /> View All Jobs
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Add / Edit job modal */}
+      {modal.open && (
+        <Modal title={modal.mode === 'add' ? 'Add Job' : 'Edit Job'} onClose={() => setModal({ open: false })}>
+          <div className="space-y-4">
+            <FormInput
+              label="Job Number" sublabel="(##-##-####)" autoFocus type="text"
+              value={modal.jobNumber} placeholder="e.g. 26-25-1325"
+              onChange={(e) => setModal({ ...modal, jobNumber: e.target.value, error: '' })}
+              onKeyDown={(e) => e.key === 'Enter' && void handleSaveJob()}
+            />
+            <FormInput
+              label="Job Name" type="text"
+              value={modal.jobName} placeholder="e.g. DH Griffin – Lovett STEM Academy"
+              onChange={(e) => setModal({ ...modal, jobName: e.target.value, error: '' })}
+              onKeyDown={(e) => e.key === 'Enter' && void handleSaveJob()}
+            />
+            {modal.error && <p className="text-[12px] text-[hsl(var(--destructive))]">{modal.error}</p>}
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setModal({ open: false })} className="rounded-md border border-[hsl(var(--border))] px-4 py-2 text-[12px] font-semibold transition hover:bg-[hsl(var(--muted))]">Cancel</button>
+              <button
+                onClick={() => void handleSaveJob()}
+                disabled={createJob.isPending || updateJob.isPending}
+                className="flex items-center gap-1.5 rounded-md bg-[hsl(var(--primary))] px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-[hsl(var(--primary)/.9)] disabled:opacity-50"
+              >
+                {(createJob.isPending || updateJob.isPending) ? <LoaderCircle size={12} className="animate-spin" /> : <Check size={12} />}
+                {modal.mode === 'add' ? 'Add Job' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+// ─── Home screen ──────────────────────────────────────────────────────────────
+
 function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) {
   const qc = useQueryClient();
   const { data: years = [], isLoading: yearsLoading, isError: yearsError } = useListYears();
@@ -518,155 +776,179 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
   return (
     <div className="flex min-h-[100dvh]">
 
-      {/* ── Left sidebar ────────────────────────────────────────── */}
-      <aside className="hidden md:flex w-[220px] shrink-0 flex-col bg-[hsl(var(--sidebar))]">
-        {/* Logo + app name */}
-        <div className="flex h-[54px] shrink-0 items-center gap-3 border-b border-white/[.07] px-5">
-          <img src="/dhg-logo.png" alt="D.H. Griffin Companies" className="h-7 w-auto" />
-          <div className="h-4 w-px bg-white/20" />
-          <span className="text-[13px] font-semibold tracking-wide text-white/90">TicketYard</span>
+      {/* ── Sidebar ──────────────────────────────────────────────── */}
+      <aside className="hidden md:flex w-[240px] shrink-0 flex-col bg-[hsl(var(--sidebar))]">
+
+        {/* Logo — large, prominent, centered */}
+        <div className="flex items-center justify-center border-b border-white/[.07] px-6 py-6">
+          <img src="/dhg-logo.png" alt="D.H. Griffin Companies" className="h-[72px] w-auto" />
         </div>
 
-        <div className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
-          {/* Section label */}
-          <div className="mb-2.5 px-2 text-[9px] font-bold uppercase tracking-[.14em] text-white/30">Fiscal Years</div>
-
-          {yearsLoading && (
-            <div className="flex justify-center py-6">
-              <LoaderCircle size={16} className="animate-spin text-white/30" />
+        {/* Navigation */}
+        <nav className="px-3 pt-4 space-y-0.5">
+          {[
+            { icon: <Home size={15} />, label: 'Select Year', active: true },
+            { icon: <ClipboardList size={15} />, label: 'Ticket Register', active: false },
+            { icon: <UploadCloud size={15} />, label: 'Upload History', active: false },
+            { icon: <ArrowDownToLine size={15} />, label: 'Export History', active: false },
+            { icon: <Settings2 size={15} />, label: 'Settings', active: false },
+          ].map(({ icon, label, active }) => (
+            <div
+              key={label}
+              className={`flex cursor-default items-center gap-3 rounded-md px-3 py-2.5 text-[12px] font-semibold transition select-none ${
+                active
+                  ? 'bg-[hsl(var(--primary))] text-white'
+                  : 'text-white/45 hover:bg-[hsl(var(--sidebar-accent))] hover:text-white/80'
+              }`}
+            >
+              {icon} {label}
             </div>
-          )}
-          {yearsError && (
-            <p className="px-2 py-3 text-[11px] text-red-400">Could not load years.</p>
-          )}
+          ))}
+        </nav>
 
-          {/* Year cards */}
-          <div className="space-y-1">
-            {sortedYears.map((year) => (
-              <div key={year.id} className="group relative">
-                <button
-                  onClick={() => setSelectedYear(year)}
-                  className={`w-full flex items-center justify-between rounded-md px-3 py-2.5 text-left transition ${
-                    selectedYear?.id === year.id
-                      ? 'border border-[hsl(var(--primary)/.45)] bg-[hsl(var(--primary)/.2)] text-white'
-                      : 'border border-transparent text-white/55 hover:bg-[hsl(var(--sidebar-accent))] hover:text-white/85'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${selectedYear?.id === year.id ? 'bg-[hsl(var(--sidebar-primary))]' : 'bg-white/20'}`} />
-                    <span className="text-[13px] font-semibold">{year.year}</span>
-                  </div>
-                  {selectedYear?.id === year.id && <ChevronRight size={12} className="text-[hsl(var(--sidebar-primary))]" />}
-                </button>
-                {/* Delete year — appears on row hover */}
-                <button
-                  onClick={() => void handleDeleteYear(year)}
-                  title={`Remove ${year.year}`}
-                  className="absolute right-2 top-1/2 hidden h-5 w-5 -translate-y-1/2 items-center justify-center rounded bg-[hsl(var(--sidebar-accent))] text-white/40 transition hover:bg-[hsl(var(--destructive)/.4)] hover:text-white/90 group-hover:flex"
-                >
-                  <X size={9} strokeWidth={2.5} />
-                </button>
-              </div>
-            ))}
+        {/* Recent Jobs — served from react-query cache, free */}
+        {selectedYear && (
+          <SidebarRecentJobs
+            yearId={selectedYear.id}
+            onOpen={(job) => onSelect(selectedYear, job)}
+          />
+        )}
+
+        {/* Construction imagery + red footer strip */}
+        <div className="mt-auto">
+          {/* Dark gradient with SVG construction silhouette */}
+          <div className="relative h-[120px] overflow-hidden bg-gradient-to-t from-black/30 to-transparent">
+            <svg
+              className="absolute bottom-0 left-0 w-full opacity-[.18]"
+              viewBox="0 0 240 80"
+              preserveAspectRatio="xMidYMax meet"
+              aria-hidden="true"
+            >
+              {/* Buildings */}
+              <rect x="168" y="22" width="14" height="58" fill="white" />
+              <rect x="185" y="12" width="18" height="68" fill="white" />
+              <rect x="206" y="28" width="13" height="52" fill="white" />
+              <rect x="222" y="34" width="16" height="46" fill="white" />
+              {/* Crane / excavator arm */}
+              <line x1="50" y1="75" x2="80" y2="18" stroke="white" strokeWidth="5" strokeLinecap="round" />
+              <line x1="80" y1="18" x2="120" y2="38" stroke="white" strokeWidth="3" strokeLinecap="round" />
+              <line x1="80" y1="18" x2="80" y2="0" stroke="white" strokeWidth="2" strokeLinecap="round" />
+              <line x1="80" y1="0" x2="120" y2="18" stroke="white" strokeWidth="2" strokeLinecap="round" />
+              {/* Truck body */}
+              <rect x="8" y="55" width="48" height="20" rx="2" fill="white" />
+              <rect x="4" y="60" width="16" height="15" rx="1" fill="white" />
+              <circle cx="16" cy="77" r="5" fill="white" />
+              <circle cx="44" cy="77" r="5" fill="white" />
+            </svg>
           </div>
-
-          {/* Add Year — prominent dashed card */}
-          <button
-            onClick={() => setYearModal({ open: true, value: String(new Date().getFullYear()), error: '' })}
-            className="mt-2 flex w-full items-center gap-2 rounded-md border border-dashed border-white/[.15] px-3 py-2.5 text-[12px] font-medium text-white/40 transition hover:border-[hsl(var(--primary)/.55)] hover:bg-[hsl(var(--primary)/.12)] hover:text-white/80"
-          >
-            <Plus size={13} /> Add Year
-          </button>
-
-          {/* OCR status card — pinned to bottom */}
-          <div className="mt-auto pt-6">
-            <div className="rounded-md border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-accent)/.6)] p-3">
-              <div className="flex items-center gap-2 text-[11px] font-semibold text-white/75">
-                <ShieldCheck size={13} className="text-[hsl(var(--sidebar-primary))]" /> Local OCR
-              </div>
-              <div className="mt-1.5 flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-[hsl(var(--sidebar-primary))]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--sidebar-primary))]" /> Ready
-              </div>
-            </div>
+          {/* Red strip */}
+          <div className="bg-[hsl(var(--primary))] px-5 py-3">
+            <p className="text-[9.5px] font-semibold uppercase tracking-[.09em] text-white/80">
+              Safety · Integrity · Performance · People
+            </p>
           </div>
         </div>
       </aside>
 
-      {/* ── Main content ─────────────────────────────────────────── */}
-      <div className="flex min-w-0 flex-1 flex-col bg-[hsl(var(--background))]">
+      {/* ── Main content ──────────────────────────────────────────── */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-white">
 
-        {/* Top bar */}
-        <header className="flex h-[54px] shrink-0 items-center justify-between gap-4 border-b border-[hsl(var(--border))] bg-white px-6 md:px-8">
-          {/* Mobile: show logo */}
-          <div className="flex items-center gap-2.5 md:hidden">
-            <img src="/dhg-logo.png" alt="D.H. Griffin Companies" className="h-6 w-auto" />
-            <span className="text-[13px] font-semibold">TicketYard</span>
-          </div>
-          {/* Desktop: company label */}
-          <span className="hidden text-[11px] font-semibold uppercase tracking-[.12em] text-[hsl(var(--primary))] md:block">
-            D.H. Griffin Companies
-          </span>
-          <div className="flex items-center gap-3">
-            <ApiStatus theme="light" />
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[11px] font-bold text-white">MR</div>
-          </div>
-        </header>
+        {/* Status + avatar — inline top-right, no separate header bar */}
+        <div className="flex justify-end items-center gap-3 px-8 pt-6 pb-0 shrink-0">
+          <ApiStatus theme="light" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[11px] font-bold text-white">MR</div>
+        </div>
 
-        {/* Page header */}
-        <div className="border-b border-[hsl(var(--border))] bg-white px-6 py-5 md:px-8">
-          <h1 className="text-[1.35rem] font-bold tracking-tight text-[hsl(var(--foreground))]">
-            {selectedYear ? `${selectedYear.year} — Job Register` : 'Job Register'}
+        {/* Hero */}
+        <div className="px-8 pt-3 pb-7 shrink-0">
+          <h1 className="text-[2rem] font-bold tracking-tight text-[hsl(var(--foreground))]">
+            Welcome to{' '}
+            <span className="text-[hsl(var(--primary))]">TicketYard</span>
           </h1>
-          <p className="mt-1 text-[12px] text-[hsl(var(--muted-foreground))]">
-            {selectedYear
-              ? 'Select a job to open the ticket register.'
-              : 'Choose a fiscal year from the sidebar to get started.'}
+          <p className="mt-1.5 text-[14px] text-[hsl(var(--muted-foreground))]">
+            Select a year to view your jobs
           </p>
         </div>
 
-        {/* Body */}
-        <main className="flex-1 px-6 py-6 md:px-8 animate-rise">
+        {/* ── SELECT A YEAR ─────────────────────────────────────── */}
+        <div className="px-8 pb-8 shrink-0">
+          <div className="mb-4 border-b-2 border-[hsl(var(--primary))] pb-1 w-fit">
+            <h2 className="text-[11px] font-bold uppercase tracking-[.13em] text-[hsl(var(--primary))]">
+              Select a Year
+            </h2>
+          </div>
+
           {yearsError && (
-            <div className="flex flex-col items-center rounded-lg border border-red-200 bg-red-50 py-12 text-center">
-              <AlertTriangle size={20} className="text-[hsl(var(--destructive))]" />
-              <p className="mt-2 text-sm text-[hsl(var(--destructive))]">Could not load years. Check that the API server is running.</p>
-            </div>
+            <p className="mb-4 text-sm text-[hsl(var(--destructive))]">
+              <AlertTriangle size={14} className="mr-1 inline" /> Could not load years. Check that the API server is running.
+            </p>
           )}
 
-          {!yearsLoading && !yearsError && years.length === 0 && (
-            <div className="flex flex-col items-center rounded-lg border border-dashed border-[hsl(var(--border))] bg-white py-20 text-center">
-              <CalendarDays size={28} className="text-[hsl(var(--muted-foreground))]" />
-              <p className="mt-3 text-[14px] font-semibold">No years configured</p>
-              <p className="mt-1 text-[13px] text-[hsl(var(--muted-foreground))]">
-                Use "Add Year" in the sidebar to create your first fiscal year.
-              </p>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-4">
+            {yearsLoading && (
+              <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
+                <LoaderCircle size={16} className="animate-spin" /> Loading…
+              </div>
+            )}
 
-          {!selectedYear && !yearsLoading && years.length > 0 && (
-            <div className="flex flex-col items-center rounded-lg border border-dashed border-[hsl(var(--border))] bg-white py-20 text-center">
-              <CalendarDays size={28} className="text-[hsl(var(--muted-foreground))]" />
-              <p className="mt-3 text-[14px] font-semibold">Select a fiscal year</p>
-              <p className="mt-1 text-[13px] text-[hsl(var(--muted-foreground))]">
-                Choose a year from the sidebar to view its jobs.
-              </p>
-            </div>
-          )}
+            {sortedYears.map((year) => (
+              <YearCardWidget
+                key={year.id}
+                year={year}
+                isSelected={selectedYear?.id === year.id}
+                onSelect={() => setSelectedYear(year)}
+                onDelete={() => void handleDeleteYear(year)}
+              />
+            ))}
 
-          {selectedYear && (
-            <JobPanel
+            {/* Add Year — dashed card */}
+            <button
+              onClick={() => setYearModal({ open: true, value: String(new Date().getFullYear()), error: '' })}
+              className="flex min-w-[130px] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[hsl(var(--primary)/.35)] bg-white py-6 px-5 transition hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/.03)]"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-white shadow-sm">
+                <Plus size={22} />
+              </div>
+              <span className="text-[13px] font-semibold text-[hsl(var(--primary))]">Add Year</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ── RECENT ACTIVITY ───────────────────────────────────── */}
+        {selectedYear ? (
+          <div className="flex-1 px-8 pb-8 animate-rise">
+            <div className="mb-4">
+              <div className="border-b-2 border-[hsl(var(--primary))] pb-1 w-fit">
+                <h2 className="text-[11px] font-bold uppercase tracking-[.13em] text-[hsl(var(--primary))]">
+                  Recent Activity
+                </h2>
+              </div>
+            </div>
+            <RecentActivityPanel
               key={selectedYear.id}
               year={selectedYear}
-              onSelectJob={(job) => onSelect(selectedYear, job)}
+              onOpen={(job) => onSelect(selectedYear, job)}
               announce={announce}
             />
-          )}
-        </main>
+          </div>
+        ) : (
+          !yearsLoading && years.length > 0 && (
+            <div className="flex flex-1 items-center justify-center pb-16">
+              <div className="text-center">
+                <CalendarDays size={32} className="mx-auto text-[hsl(var(--muted-foreground)/.35)]" />
+                <p className="mt-3 text-[14px] font-semibold">Select a year above</p>
+                <p className="mt-1 text-[13px] text-[hsl(var(--muted-foreground))]">Click a year card to view its jobs.</p>
+              </div>
+            </div>
+          )
+        )}
 
-        {/* Footer */}
-        <footer className="flex items-center gap-2.5 border-t border-[hsl(var(--border))] bg-white px-6 py-3.5 text-[10px] uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))] md:px-8">
-          <img src="/dhg-logo.png" alt="" className="h-4 w-auto opacity-25" />
-          D.H. Griffin Companies — TicketYard Internal Operations
+        {/* Red footer */}
+        <footer className="mt-auto shrink-0 bg-[hsl(var(--primary))] px-8 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[11px] font-medium text-white/85">
+            <ShieldCheck size={13} /> Safety · Integrity · Performance · People
+          </div>
+          <span className="text-[11px] text-white/70">© {new Date().getFullYear()} D.H. Griffin Companies</span>
         </footer>
       </div>
 
