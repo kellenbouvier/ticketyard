@@ -48,3 +48,31 @@ All notable changes to this project during the audit/overhaul are logged here.
   from and persists through the ticket-records API instead of an
   in-memory `rowsByJobId` map, so upload history, OCR results, and manual
   edits survive a page refresh. See AUDIT.md C-2 for the full writeup.
+- **App-wide login gate** (AUDIT.md L-1) — a single shared credential
+  (`APP_LOGIN_USER`/`APP_LOGIN_PASSWORD`), not per-user accounts:
+  - `artifacts/api-server/src/lib/authConfig.ts`: reads the credential and
+    `SESSION_SECRET` lazily, failing fast with a clear error the first time
+    they're actually needed (server startup) — never at build/bundle time.
+  - `artifacts/api-server/src/lib/session.ts`: signed, httpOnly,
+    `sameSite=lax` session cookie (`secure` in production), 7-day expiry.
+    No server-side session store — stateless, verified via the
+    cookie-parser signature plus an embedded issued-at timestamp.
+  - `artifacts/api-server/src/routes/auth.ts`: `POST /auth/login`,
+    `POST /auth/logout`, `GET /auth/me`. Login compares username and
+    password unconditionally (SHA-256 + `timingSafeEqual`, no
+    short-circuit) and returns an identical generic 401 for either a wrong
+    username or wrong password, so neither response content nor timing can
+    be used to enumerate valid usernames.
+  - `artifacts/api-server/src/middlewares/requireAuth.ts` + `app.ts`:
+    every `/api` route requires a valid session except `/healthz` and
+    `/auth/*`.
+  - `artifacts/ticket-yard/src/App.tsx`: `LoginPage` (matches the existing
+    UI), `AuthGate` redirects unauthenticated navigation to an actual
+    `/login` URL (via wouter's `<Redirect>`, not just an in-place
+    component swap), `/login` itself redirects back to `/` if already
+    authenticated, and "Log out" buttons are wired into both the home
+    screen and the register sidebar.
+  - `.env.example` added; `replit.md` documents the three new required env
+    vars.
+  - Credentials and the session secret are never logged anywhere in this
+    codebase.

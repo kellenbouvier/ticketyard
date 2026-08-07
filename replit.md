@@ -10,6 +10,10 @@ DHG Register turns construction-industry ticket photos into reviewable, export-r
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Required env for the login gate: `APP_LOGIN_USER`, `APP_LOGIN_PASSWORD`,
+  `SESSION_SECRET` — see `.env.example`. The API server fails fast at
+  startup if any are missing (this does not block `vite build`/`pnpm run
+  build`, which never execute server code).
 
 ## Stack
 
@@ -30,8 +34,9 @@ DHG Register turns construction-industry ticket photos into reviewable, export-r
 ## Architecture decisions
 
 - Ticket images are converted to base64 in the browser and sent to the API; the server runs local Tesseract OCR and does not require a paid AI provider.
-- Extraction returns only six string fields and blanks unreadable values instead of guessing.
-- The register is local to the browser so review, correction, retry, and CSV export stay immediate.
+- Extraction returns only the defined ticket/invoice fields and blanks unreadable values instead of guessing.
+- Ticket register rows are persisted server-side per job (`tickets` table) so upload history, statuses, and manual edits survive a refresh.
+- The whole app sits behind a shared-credential login gate: a signed, httpOnly session cookie (see `artifacts/api-server/src/lib/session.ts`) gates every API route except `/healthz` and `/auth/*`, and the frontend redirects unauthenticated navigation to `/login`.
 
 ## Product
 

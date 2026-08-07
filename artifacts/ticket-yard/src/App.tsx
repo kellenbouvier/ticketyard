@@ -13,8 +13,12 @@ import {
   useCreateTicketRecord,
   useUpdateTicketRecord,
   useDeleteTicketRecord,
+  useLogin,
+  useLogout,
+  useGetCurrentUser,
   getListYearsQueryKey,
   getListJobsQueryKey,
+  getGetCurrentUserQueryKey,
 } from '@workspace/api-client-react';
 import type {
   Year,
@@ -41,6 +45,8 @@ import {
   Home,
   Inbox,
   LoaderCircle,
+  LockKeyhole,
+  LogOut,
   Menu,
   MoreHorizontal,
   Pencil,
@@ -56,7 +62,7 @@ import {
   ZoomIn,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Route, Switch, Router as WouterRouter } from 'wouter';
+import { Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
@@ -307,6 +313,101 @@ function FormInput({ label, sublabel, ...props }: React.InputHTMLAttributes<HTML
       <input {...props} className="w-full rounded-md border border-[hsl(var(--border))] bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[hsl(var(--primary)/.6)] focus:ring-2 focus:ring-[hsl(var(--primary)/.12)]" />
     </div>
   );
+}
+
+// ─── Login / auth gate ─────────────────────────────────────────────────────────
+
+function LoginPage() {
+  const qc = useQueryClient();
+  const [, setLocation] = useLocation();
+  const login = useLogin();
+  // Already-authenticated users who land on /login directly (e.g. via
+  // back/forward navigation) go straight back to the app.
+  const { data: currentUser } = useGetCurrentUser({ query: { retry: false, queryKey: getGetCurrentUserQueryKey() } });
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await login.mutateAsync({ data: { username, password } });
+      await qc.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+      setLocation('/');
+    } catch {
+      // Deliberately generic — never hint whether the username or the
+      // password was the one that didn't match.
+      setError('Invalid username or password.');
+    }
+  }, [login, password, qc, setLocation, username]);
+
+  if (currentUser) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[hsl(var(--background))] px-4">
+      <div className="w-full max-w-sm animate-rise">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <img src="/dhg-logo.png" alt="D.H. Griffin Companies" className="h-12 w-auto" />
+          <h1 className="mt-4 text-[1.2rem] font-bold tracking-tight text-[hsl(var(--foreground))]">DHG Register</h1>
+          <p className="mt-1 text-[12px] text-[hsl(var(--muted-foreground))]">Sign in to continue.</p>
+        </div>
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4 rounded-xl border border-[hsl(var(--card-border))] bg-[hsl(var(--card))] p-6 shadow-sm">
+          <FormInput
+            label="Username"
+            autoFocus
+            autoComplete="username"
+            type="text"
+            value={username}
+            onChange={(e) => { setUsername(e.target.value); setError(''); }}
+          />
+          <FormInput
+            label="Password"
+            autoComplete="current-password"
+            type="password"
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError(''); }}
+          />
+          {error && <p className="text-[12px] text-[hsl(var(--destructive))]">{error}</p>}
+          <button
+            type="submit"
+            disabled={login.isPending || !username || !password}
+            className="flex w-full items-center justify-center gap-1.5 rounded-md bg-[hsl(var(--primary))] px-4 py-2.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-[hsl(var(--primary)/.9)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {login.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <LockKeyhole size={14} />}
+            Sign In
+          </button>
+        </form>
+        <p className="mt-5 text-center text-[10px] uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">D.H. Griffin Companies — DHG Register</p>
+      </div>
+    </div>
+  );
+}
+
+/** Gates app content behind a valid session. Mounted around every real
+ * route except /login itself; an unauthenticated visitor is redirected to
+ * an actual /login URL (not just a swapped-in component) so browser
+ * navigation, bookmarking, and back/forward behave normally. The API
+ * independently verifies the session cookie on every request regardless
+ * of what the client renders. */
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { data, isLoading, isError } = useGetCurrentUser({ query: { retry: false, queryKey: getGetCurrentUserQueryKey() } });
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-[hsl(var(--background))]">
+        <LoaderCircle size={22} className="animate-spin text-[hsl(var(--primary))]" />
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return <Redirect to="/login" />;
+  }
+
+  return <>{children}</>;
 }
 
 // ─── Home screen — year tabs + job list ───────────────────────────────────────
@@ -768,6 +869,10 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
   const { data: years = [], isLoading: yearsLoading, isError: yearsError } = useListYears();
   const createYear = useCreateYear();
   const deleteYear = useDeleteYear();
+  const logout = useLogout();
+  const handleLogout = useCallback(() => {
+    void logout.mutateAsync().finally(() => qc.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() }));
+  }, [logout, qc]);
 
   const [selectedYear, setSelectedYear] = useState<Year | null>(null);
   const [yearModal, setYearModal] = useState<AddYearModal>({ open: false });
@@ -872,6 +977,13 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
         {/* Status + avatar — inline top-right, no separate header bar */}
         <div className="flex justify-end items-center gap-3 px-8 pt-5 pb-0 shrink-0">
           <ApiStatus theme="light" />
+          <button
+            onClick={handleLogout}
+            title="Log out"
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+          >
+            <LogOut size={13} /> Log out
+          </button>
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--primary)/.15)] border border-[hsl(var(--primary)/.25)] text-[hsl(var(--primary))]">
             <User size={16} strokeWidth={1.75} />
           </div>
@@ -1011,6 +1123,12 @@ function Sidebar({ year, job, onNewBatch, onBackToJobs, onBackToYears }: {
   onBackToJobs: () => void;
   onBackToYears: () => void;
 }) {
+  const qc = useQueryClient();
+  const logout = useLogout();
+  const handleLogout = useCallback(() => {
+    void logout.mutateAsync().finally(() => qc.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() }));
+  }, [logout, qc]);
+
   return (
     <aside className="hidden min-h-[100dvh] w-[220px] shrink-0 flex-col bg-[hsl(var(--sidebar))] md:flex">
       {/* Logo + app name */}
@@ -1067,6 +1185,9 @@ function Sidebar({ year, job, onNewBatch, onBackToJobs, onBackToYears }: {
           <div className="mt-3 flex items-center justify-between px-1">
             <button className="flex items-center gap-1.5 text-[11px] text-white/30 transition hover:text-white/60">
               <Settings2 size={13} /> Settings
+            </button>
+            <button onClick={handleLogout} className="flex items-center gap-1.5 text-[11px] text-white/30 transition hover:text-white/60">
+              <LogOut size={13} /> Log out
             </button>
           </div>
         </div>
@@ -1498,7 +1619,12 @@ export default function Root() {
       <TooltipProvider>
         <WouterRouter>
           <Switch>
-            <Route path="/" component={App} />
+            <Route path="/login" component={LoginPage} />
+            <Route path="/">
+              <AuthGate>
+                <App />
+              </AuthGate>
+            </Route>
             <Route component={NotFound} />
           </Switch>
         </WouterRouter>
