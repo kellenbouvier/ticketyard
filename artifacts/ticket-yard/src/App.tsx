@@ -46,6 +46,7 @@ import {
   ShieldCheck,
   Trash2,
   UploadCloud,
+  User,
   X,
   ZoomIn,
 } from 'lucide-react';
@@ -793,7 +794,7 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
         </div>
 
         {/* Navigation */}
-        <nav className="px-3 pt-4 space-y-0.5">
+        <nav className="px-3 pt-5 space-y-1">
           {[
             { icon: <Home size={15} />, label: 'Select Year', active: true },
             { icon: <ClipboardList size={15} />, label: 'Ticket Register', active: false },
@@ -803,10 +804,10 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
           ].map(({ icon, label, active }) => (
             <div
               key={label}
-              className={`flex cursor-default items-center gap-3 rounded-md px-3 py-2.5 text-[12px] font-semibold transition select-none ${
+              className={`flex cursor-default items-center gap-3 rounded-md px-3 py-2.5 text-[12px] transition select-none ${
                 active
-                  ? 'bg-[hsl(var(--primary))] text-white'
-                  : 'text-white/45 hover:bg-[hsl(var(--sidebar-accent))] hover:text-white/80'
+                  ? 'bg-[hsl(var(--primary))] font-semibold text-white'
+                  : 'font-medium text-white/35 hover:bg-[hsl(var(--sidebar-accent))] hover:text-white/70'
               }`}
             >
               {icon} {label}
@@ -832,7 +833,9 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
         {/* Status + avatar — inline top-right, no separate header bar */}
         <div className="flex justify-end items-center gap-3 px-8 pt-5 pb-0 shrink-0">
           <ApiStatus theme="light" />
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[11px] font-bold text-white">MR</div>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--primary)/.15)] border border-[hsl(var(--primary)/.25)] text-[hsl(var(--primary))]">
+            <User size={16} strokeWidth={1.75} />
+          </div>
         </div>
 
         {/* Hero */}
@@ -921,9 +924,7 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
 
         {/* Red footer — full width across bottom of main area */}
         <footer className="mt-auto shrink-0 bg-[hsl(var(--primary))] px-8 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[11px] font-medium text-white/90">
-            <ShieldCheck size={13} /> Safety · Integrity · Performance · People
-          </div>
+          <span className="text-[11px] font-medium text-white/90">Safety · Integrity · Performance · People</span>
           <span className="text-[11px] text-white/70">© {new Date().getFullYear()} D.H. Griffin Companies</span>
         </footer>
       </div>
