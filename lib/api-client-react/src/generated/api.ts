@@ -20,9 +20,14 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CreateJobInput,
+  CreateYearInput,
   HealthStatus,
+  Job,
   TicketExtraction,
-  TicketExtractionInput
+  TicketExtractionInput,
+  UpdateJobInput,
+  Year
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -200,5 +205,520 @@ export const useExtractTicket = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getExtractTicketMutationOptions(options));
+    }
+
+export const getListYearsUrl = () => {
+
+
+
+
+  return `/api/years`
+}
+
+/**
+ * @summary List all years
+ */
+export const listYears = async ( options?: Parameters<typeof customFetch>[1]): Promise<Year[]> => {
+
+  return customFetch<Year[]>(getListYearsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListYearsQueryKey = () => {
+    return [
+    `/api/years`
+    ] as const;
+    }
+
+
+export const getListYearsQueryOptions = <TData = Awaited<ReturnType<typeof listYears>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listYears>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListYearsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listYears>>> = ({ signal }) => listYears({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listYears>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListYearsQueryResult = NonNullable<Awaited<ReturnType<typeof listYears>>>
+export type ListYearsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all years
+ */
+
+export function useListYears<TData = Awaited<ReturnType<typeof listYears>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listYears>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListYearsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateYearUrl = () => {
+
+
+
+
+  return `/api/years`
+}
+
+/**
+ * @summary Create a year
+ */
+export const createYear = async (createYearInput: CreateYearInput, options?: Parameters<typeof customFetch>[1]): Promise<Year> => {
+
+  return customFetch<Year>(getCreateYearUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createYearInput)
+  }
+);}
+
+
+
+
+
+export const getCreateYearMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createYear>>, TError,{data: BodyType<CreateYearInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createYear>>, TError,{data: BodyType<CreateYearInput>}, TContext> => {
+
+const mutationKey = ['createYear'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createYear>>, {data: BodyType<CreateYearInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createYear(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateYearMutationResult = NonNullable<Awaited<ReturnType<typeof createYear>>>
+    export type CreateYearMutationBody = BodyType<CreateYearInput>
+    export type CreateYearMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a year
+ */
+export const useCreateYear = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createYear>>, TError,{data: BodyType<CreateYearInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createYear>>,
+        TError,
+        {data: BodyType<CreateYearInput>},
+        TContext
+      > => {
+      return useMutation(getCreateYearMutationOptions(options));
+    }
+
+export const getDeleteYearUrl = (yearId: number,) => {
+
+
+
+
+  return `/api/years/${yearId}`
+}
+
+/**
+ * @summary Delete a year and all its jobs
+ */
+export const deleteYear = async (yearId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteYearUrl(yearId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteYearMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteYear>>, TError,{yearId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteYear>>, TError,{yearId: number}, TContext> => {
+
+const mutationKey = ['deleteYear'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteYear>>, {yearId: number}> = (props) => {
+          const {yearId} = props ?? {};
+
+          return  deleteYear(yearId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteYearMutationResult = NonNullable<Awaited<ReturnType<typeof deleteYear>>>
+
+    export type DeleteYearMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a year and all its jobs
+ */
+export const useDeleteYear = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteYear>>, TError,{yearId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteYear>>,
+        TError,
+        {yearId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteYearMutationOptions(options));
+    }
+
+export const getListJobsUrl = (yearId: number,) => {
+
+
+
+
+  return `/api/years/${yearId}/jobs`
+}
+
+/**
+ * @summary List jobs for a year
+ */
+export const listJobs = async (yearId: number, options?: Parameters<typeof customFetch>[1]): Promise<Job[]> => {
+
+  return customFetch<Job[]>(getListJobsUrl(yearId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListJobsQueryKey = (yearId: number,) => {
+    return [
+    `/api/years/${yearId}/jobs`
+    ] as const;
+    }
+
+
+export const getListJobsQueryOptions = <TData = Awaited<ReturnType<typeof listJobs>>, TError = ErrorType<void>>(yearId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListJobsQueryKey(yearId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJobs>>> = ({ signal }) => listJobs(yearId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: yearId !== null && yearId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listJobs>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListJobsQueryResult = NonNullable<Awaited<ReturnType<typeof listJobs>>>
+export type ListJobsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List jobs for a year
+ */
+
+export function useListJobs<TData = Awaited<ReturnType<typeof listJobs>>, TError = ErrorType<void>>(
+ yearId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListJobsQueryOptions(yearId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateJobUrl = (yearId: number,) => {
+
+
+
+
+  return `/api/years/${yearId}/jobs`
+}
+
+/**
+ * @summary Create a job in a year
+ */
+export const createJob = async (yearId: number,
+    createJobInput: CreateJobInput, options?: Parameters<typeof customFetch>[1]): Promise<Job> => {
+
+  return customFetch<Job>(getCreateJobUrl(yearId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createJobInput)
+  }
+);}
+
+
+
+
+
+export const getCreateJobMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJob>>, TError,{yearId: number;data: BodyType<CreateJobInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createJob>>, TError,{yearId: number;data: BodyType<CreateJobInput>}, TContext> => {
+
+const mutationKey = ['createJob'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createJob>>, {yearId: number;data: BodyType<CreateJobInput>}> = (props) => {
+          const {yearId,data} = props ?? {};
+
+          return  createJob(yearId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateJobMutationResult = NonNullable<Awaited<ReturnType<typeof createJob>>>
+    export type CreateJobMutationBody = BodyType<CreateJobInput>
+    export type CreateJobMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a job in a year
+ */
+export const useCreateJob = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createJob>>, TError,{yearId: number;data: BodyType<CreateJobInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createJob>>,
+        TError,
+        {yearId: number;data: BodyType<CreateJobInput>},
+        TContext
+      > => {
+      return useMutation(getCreateJobMutationOptions(options));
+    }
+
+export const getUpdateJobUrl = (yearId: number,
+    jobId: number,) => {
+
+
+
+
+  return `/api/years/${yearId}/jobs/${jobId}`
+}
+
+/**
+ * @summary Update a job
+ */
+export const updateJob = async (yearId: number,
+    jobId: number,
+    updateJobInput: UpdateJobInput, options?: Parameters<typeof customFetch>[1]): Promise<Job> => {
+
+  return customFetch<Job>(getUpdateJobUrl(yearId,jobId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateJobInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateJobMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJob>>, TError,{yearId: number;jobId: number;data: BodyType<UpdateJobInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateJob>>, TError,{yearId: number;jobId: number;data: BodyType<UpdateJobInput>}, TContext> => {
+
+const mutationKey = ['updateJob'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateJob>>, {yearId: number;jobId: number;data: BodyType<UpdateJobInput>}> = (props) => {
+          const {yearId,jobId,data} = props ?? {};
+
+          return  updateJob(yearId,jobId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateJobMutationResult = NonNullable<Awaited<ReturnType<typeof updateJob>>>
+    export type UpdateJobMutationBody = BodyType<UpdateJobInput>
+    export type UpdateJobMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a job
+ */
+export const useUpdateJob = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateJob>>, TError,{yearId: number;jobId: number;data: BodyType<UpdateJobInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateJob>>,
+        TError,
+        {yearId: number;jobId: number;data: BodyType<UpdateJobInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateJobMutationOptions(options));
+    }
+
+export const getDeleteJobUrl = (yearId: number,
+    jobId: number,) => {
+
+
+
+
+  return `/api/years/${yearId}/jobs/${jobId}`
+}
+
+/**
+ * @summary Delete a job
+ */
+export const deleteJob = async (yearId: number,
+    jobId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteJobUrl(yearId,jobId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteJobMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteJob>>, TError,{yearId: number;jobId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteJob>>, TError,{yearId: number;jobId: number}, TContext> => {
+
+const mutationKey = ['deleteJob'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteJob>>, {yearId: number;jobId: number}> = (props) => {
+          const {yearId,jobId} = props ?? {};
+
+          return  deleteJob(yearId,jobId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteJobMutationResult = NonNullable<Awaited<ReturnType<typeof deleteJob>>>
+
+    export type DeleteJobMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a job
+ */
+export const useDeleteJob = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteJob>>, TError,{yearId: number;jobId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteJob>>,
+        TError,
+        {yearId: number;jobId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteJobMutationOptions(options));
     }
 

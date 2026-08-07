@@ -57,3 +57,37 @@ export interface TicketExtraction {
   wasteType: string;
 }
 
+export interface Year {
+  id: number;
+  year: number;
+}
+
+export interface CreateYearInput {
+  /**
+     * @minimum 2000
+     * @maximum 2100
+     */
+  year: number;
+}
+
+export interface Job {
+  id: number;
+  yearId: number;
+  jobNumber: string;
+  jobName: string;
+}
+
+export interface CreateJobInput {
+  /** @minLength 1 */
+  jobNumber: string;
+  /** @minLength 1 */
+  jobName: string;
+}
+
+export interface UpdateJobInput {
+  /** @minLength 1 */
+  jobNumber: string;
+  /** @minLength 1 */
+  jobName: string;
+}
+

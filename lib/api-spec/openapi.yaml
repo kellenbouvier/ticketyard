@@ -12,6 +12,10 @@ tags:
     description: Health operations
   - name: tickets
     description: Local OCR ticket extraction operations
+  - name: years
+    description: Year management
+  - name: jobs
+    description: Job management
 paths:
   /healthz:
     get:
@@ -51,6 +55,153 @@ paths:
           description: No readable text found
         "502":
           description: Local OCR service failed
+  /years:
+    get:
+      operationId: listYears
+      tags: [years]
+      summary: List all years
+      responses:
+        "200":
+          description: List of years
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Year"
+    post:
+      operationId: createYear
+      tags: [years]
+      summary: Create a year
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateYearInput"
+      responses:
+        "201":
+          description: Created year
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Year"
+        "409":
+          description: Year already exists
+  /years/{yearId}:
+    delete:
+      operationId: deleteYear
+      tags: [years]
+      summary: Delete a year and all its jobs
+      parameters:
+        - name: yearId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Year not found
+  /years/{yearId}/jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List jobs for a year
+      parameters:
+        - name: yearId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+        "404":
+          description: Year not found
+    post:
+      operationId: createJob
+      tags: [jobs]
+      summary: Create a job in a year
+      parameters:
+        - name: yearId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobInput"
+      responses:
+        "201":
+          description: Created job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: Year not found
+  /years/{yearId}/jobs/{jobId}:
+    put:
+      operationId: updateJob
+      tags: [jobs]
+      summary: Update a job
+      parameters:
+        - name: yearId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateJobInput"
+      responses:
+        "200":
+          description: Updated job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: Job not found
+    delete:
+      operationId: deleteJob
+      tags: [jobs]
+      summary: Delete a job
+      parameters:
+        - name: yearId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Job not found
 components:
   schemas:
     HealthStatus:
@@ -123,4 +274,62 @@ components:
         - amount
         - description
         - wasteType
-
+    Year:
+      type: object
+      properties:
+        id:
+          type: integer
+        year:
+          type: integer
+      required:
+        - id
+        - year
+    CreateYearInput:
+      type: object
+      properties:
+        year:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+      required:
+        - year
+    Job:
+      type: object
+      properties:
+        id:
+          type: integer
+        yearId:
+          type: integer
+        jobNumber:
+          type: string
+        jobName:
+          type: string
+      required:
+        - id
+        - yearId
+        - jobNumber
+        - jobName
+    CreateJobInput:
+      type: object
+      properties:
+        jobNumber:
+          type: string
+          minLength: 1
+        jobName:
+          type: string
+          minLength: 1
+      required:
+        - jobNumber
+        - jobName
+    UpdateJobInput:
+      type: object
+      properties:
+        jobNumber:
+          type: string
+          minLength: 1
+        jobName:
+          type: string
+          minLength: 1
+      required:
+        - jobNumber
+        - jobName

@@ -1,1 +1,2 @@
 - [TicketYard OCR provider](ticketyard-ai-provider.md) — TicketYard uses local Tesseract OCR and deterministic field parsing; no paid AI provider is required.
+- [Orval Zod v3 compatibility patch](orval-zod-compat.md) — After any orval run, patch zod.int() → zod.number().int() in api-zod generated file before rebuilding dist.

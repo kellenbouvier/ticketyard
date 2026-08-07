@@ -6,8 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './createJobInput';
+export * from './createYearInput';
 export * from './healthStatus';
+export * from './job';
 export * from './ticketExtraction';
 export * from './ticketExtractionDocumentType';
 export * from './ticketExtractionInput';
 export * from './ticketExtractionInputMediaType';
+export * from './updateJobInput';
+export * from './year';

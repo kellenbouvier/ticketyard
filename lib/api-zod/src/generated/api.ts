@@ -46,3 +46,117 @@ export const ExtractTicketResponse = zod.object({
 })
 
 
+/**
+ * @summary List all years
+ */
+export const ListYearsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "year": zod.number().int()
+})
+export const ListYearsResponse = zod.array(ListYearsResponseItem)
+
+
+/**
+ * @summary Create a year
+ */
+export const createYearBodyYearMin = 2000;
+export const createYearBodyYearMax = 2100;
+
+
+
+export const CreateYearBody = zod.object({
+  "year": zod.number().int().min(createYearBodyYearMin).max(createYearBodyYearMax)
+})
+
+export const CreateYearResponse = zod.object({
+  "id": zod.number().int(),
+  "year": zod.number().int()
+})
+
+
+/**
+ * @summary Delete a year and all its jobs
+ */
+export const DeleteYearParams = zod.object({
+  "yearId": zod.coerce.number().int()
+})
+
+export const DeleteYearResponse = zod.void()
+
+
+/**
+ * @summary List jobs for a year
+ */
+export const ListJobsParams = zod.object({
+  "yearId": zod.coerce.number().int()
+})
+
+export const ListJobsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "yearId": zod.number().int(),
+  "jobNumber": zod.string(),
+  "jobName": zod.string()
+})
+export const ListJobsResponse = zod.array(ListJobsResponseItem)
+
+
+/**
+ * @summary Create a job in a year
+ */
+export const CreateJobParams = zod.object({
+  "yearId": zod.coerce.number().int()
+})
+
+
+
+
+
+export const CreateJobBody = zod.object({
+  "jobNumber": zod.string().min(1),
+  "jobName": zod.string().min(1)
+})
+
+export const CreateJobResponse = zod.object({
+  "id": zod.number().int(),
+  "yearId": zod.number().int(),
+  "jobNumber": zod.string(),
+  "jobName": zod.string()
+})
+
+
+/**
+ * @summary Update a job
+ */
+export const UpdateJobParams = zod.object({
+  "yearId": zod.coerce.number().int(),
+  "jobId": zod.coerce.number().int()
+})
+
+
+
+
+
+export const UpdateJobBody = zod.object({
+  "jobNumber": zod.string().min(1),
+  "jobName": zod.string().min(1)
+})
+
+export const UpdateJobResponse = zod.object({
+  "id": zod.number().int(),
+  "yearId": zod.number().int(),
+  "jobNumber": zod.string(),
+  "jobName": zod.string()
+})
+
+
+/**
+ * @summary Delete a job
+ */
+export const DeleteJobParams = zod.object({
+  "yearId": zod.coerce.number().int(),
+  "jobId": zod.coerce.number().int()
+})
+
+export const DeleteJobResponse = zod.void()
+
+
