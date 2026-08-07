@@ -26,6 +26,7 @@ import type {
   TicketExtraction,
   TicketExtractionInput,
   TicketRecord,
+  WasteCategory,
 } from '@workspace/api-client-react';
 import {
   AlertTriangle,
@@ -72,7 +73,16 @@ const queryClient = new QueryClient();
 // ─── Row / extraction types ───────────────────────────────────────────────────
 
 type RowStatus = 'Reading' | 'Processed' | 'Failed' | 'Manual';
-type FieldKey = keyof TicketExtraction;
+// Waste category is edited through its own dedicated two-option selector
+// (never a free-text input — see WASTE_CATEGORY_OPTIONS), so it's handled
+// by a separate onCategoryChange callback rather than the generic
+// string-field FieldKey/onChange path the other fields share.
+type RowExtraction = Omit<TicketExtraction, 'wasteCategory'> & {
+  // Null only for rows restored from a legacy record that no vendor rule
+  // could confidently classify — "needs review", never guessed.
+  wasteCategory: WasteCategory | null;
+};
+type FieldKey = keyof Omit<TicketExtraction, 'wasteCategory'>;
 type TicketRow = {
   id: string;
   /** DB id once this row has been persisted; undefined while a fresh
@@ -85,9 +95,18 @@ type TicketRow = {
   fileName: string;
   preview: string;
   status: RowStatus;
-  extraction: TicketExtraction;
+  extraction: RowExtraction;
   error?: string;
 };
+
+// D.H. Griffin tracks disposal cost, hauling cost, billing, and
+// profitability separately for these two categories — they must never be
+// summed or displayed as one blended "waste" figure anywhere in the app.
+const WASTE_CATEGORY_LABELS: Record<WasteCategory, string> = {
+  'C&D': 'C&D Landfill',
+  Inert: 'Inert / Concrete Recycling',
+};
+const WASTE_CATEGORY_OPTIONS: WasteCategory[] = ['C&D', 'Inert'];
 
 function ticketRecordToRow(record: TicketRecord): TicketRow {
   return {
@@ -109,12 +128,12 @@ function ticketRecordToRow(record: TicketRecord): TicketRow {
       weight: record.weight,
       amount: record.amount,
       description: record.description,
-      wasteType: record.wasteType,
+      wasteCategory: record.wasteCategory,
     },
   };
 }
 
-const emptyExtraction: TicketExtraction = {
+const emptyExtraction: RowExtraction = {
   documentType: 'ticket',
   vendor: '',
   ticketNumber: '',
@@ -125,7 +144,10 @@ const emptyExtraction: TicketExtraction = {
   weight: '',
   amount: '',
   description: '',
-  wasteType: '',
+  // New rows (manual or freshly OCR'd) always get a default category —
+  // it's always shown and always one click to override, never left as an
+  // ambiguous blank the way OCR text fields are.
+  wasteCategory: 'C&D',
 };
 
 const acceptedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -139,7 +161,6 @@ const fields: { key: FieldKey; label: string; short: string }[] = [
   { key: 'weight', label: 'Weight', short: 'Weight' },
   { key: 'amount', label: 'Amount', short: 'Amount' },
   { key: 'description', label: 'Description', short: 'Description' },
-  { key: 'wasteType', label: 'Waste Type', short: 'Waste Type' },
 ];
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -1198,9 +1219,36 @@ function Sidebar({ year, job, onNewBatch, onBackToJobs, onBackToYears }: {
 
 // ─── Ticket register table ────────────────────────────────────────────────────
 
-function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
+// Source(170px) + 9 generic fields + Category selector + Actions(108px) —
+// must have exactly as many tracks as cells rendered per row below.
+const REGISTER_GRID_COLS = 'grid-cols-[170px_1fr_.9fr_.9fr_.8fr_.85fr_.95fr_.75fr_.85fr_1.3fr_1.05fr_108px]';
+
+function WasteCategorySelect({ value, disabled, onChange, ariaLabel }: {
+  value: WasteCategory | null;
+  disabled: boolean;
+  onChange: (value: WasteCategory) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <select
+      aria-label={ariaLabel}
+      disabled={disabled}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value as WasteCategory)}
+      className={`ticket-field ${value ? '' : 'text-[hsl(var(--destructive))]'}`}
+    >
+      {!value && <option value="" disabled>Needs review</option>}
+      {WASTE_CATEGORY_OPTIONS.map((option) => (
+        <option key={option} value={option}>{WASTE_CATEGORY_LABELS[option]}</option>
+      ))}
+    </select>
+  );
+}
+
+function TicketRegister({ rows, onChange, onCategoryChange, onDelete, onRetry, onPreview }: {
   rows: TicketRow[];
   onChange: (id: string, field: FieldKey, value: string) => void;
+  onCategoryChange: (id: string, category: WasteCategory) => void;
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   onPreview: (row: TicketRow) => void;
@@ -1220,9 +1268,9 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
         </div>
       </div>
       <div className="overflow-x-auto">
-        <div className="min-w-[1100px]">
-          <div className="grid grid-cols-[170px_1.05fr_1.05fr_.85fr_.8fr_.82fr_1.3fr_1fr_108px] gap-3 bg-[hsl(var(--muted)/.5)] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">
-            <div>Source</div>{fields.map((f) => <div key={f.key}>{f.short}</div>)}<div className="text-right">Actions</div>
+        <div className="min-w-[1250px]">
+          <div className={`grid ${REGISTER_GRID_COLS} gap-3 bg-[hsl(var(--muted)/.5)] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]`}>
+            <div>Source</div>{fields.map((f) => <div key={f.key}>{f.short}</div>)}<div>Category</div><div className="text-right">Actions</div>
           </div>
           {rows.length === 0 && (
             <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
@@ -1234,7 +1282,7 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
             </div>
           )}
           {rows.map((row) => (
-            <div key={row.id} className="ticket-table-row grid grid-cols-[170px_1.05fr_1.05fr_.85fr_.8fr_.82fr_1.3fr_1fr_108px] items-center gap-3 px-5 py-3 transition">
+            <div key={row.id} className={`ticket-table-row grid ${REGISTER_GRID_COLS} items-center gap-3 px-5 py-3 transition`}>
               <div className="flex min-w-0 items-center gap-2">
                 <button onClick={() => onPreview(row)} className="group relative h-9 w-11 shrink-0 overflow-hidden rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
                   <img src={row.preview} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
@@ -1253,6 +1301,12 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
                   className="ticket-field" value={row.extraction[f.key]} placeholder="—"
                   onChange={(e) => onChange(row.id, f.key, e.target.value)} />
               ))}
+              <WasteCategorySelect
+                ariaLabel={`Waste category for ${row.fileName}`}
+                disabled={row.status === 'Reading'}
+                value={row.extraction.wasteCategory}
+                onChange={(category) => onCategoryChange(row.id, category)}
+              />
               <div className="flex items-center justify-end gap-0.5">
                 {row.status === 'Failed' && row.hasSourceImage && (
                   <button onClick={() => onRetry(row.id)} title="Retry" className="action-icon rounded-md p-1.5 text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/.1)]">
@@ -1387,6 +1441,15 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
     }
   }, [announce, job.id, rows, updateTicket]);
 
+  const updateCategory = useCallback((id: string, category: WasteCategory) => {
+    setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction: { ...r.extraction, wasteCategory: category } } : r));
+    const row = rows.find((r) => r.id === id);
+    if (row?.serverId) {
+      void updateTicket.mutateAsync({ jobId: job.id, ticketId: row.serverId, data: { wasteCategory: category } })
+        .catch(() => announce('Could not save the category. Try again.', 'error'));
+    }
+  }, [announce, job.id, rows, updateTicket]);
+
   const deleteRow = useCallback((id: string) => {
     const row = rows.find((r) => r.id === id);
     setRows((cur) => cur.filter((r) => r.id !== id));
@@ -1419,16 +1482,35 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
     );
   }, [announce, deleteTicket, job.id, rows]);
 
+  // C&D landfill and inert/concrete recycling are tracked completely
+  // separately for cost/billing purposes — each category's amount is
+  // computed independently here and must never be added together into one
+  // blended total anywhere in the UI.
   const totals = useMemo(() => {
     const withWeight = rows.filter((r) => r.extraction.weight.trim()).length;
-    const amount = rows.reduce((s, r) => s + (Number(r.extraction.amount.replace(/[$,\s]/g, '')) || 0), 0);
-    return { count: rows.length, withWeight, amount: amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) };
+    const amountForCategory = (category: WasteCategory) =>
+      rows
+        .filter((r) => r.extraction.wasteCategory === category)
+        .reduce((s, r) => s + (Number(r.extraction.amount.replace(/[$,\s]/g, '')) || 0), 0)
+        .toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+    return {
+      count: rows.length,
+      withWeight,
+      cdAmount: amountForCategory('C&D'),
+      inertAmount: amountForCategory('Inert'),
+    };
   }, [rows]);
 
   const exportCsv = useCallback(() => {
-    const header = ['Document type', 'Vendor', 'Ticket number', 'Invoice number', 'Purchase Order', 'Job Number', 'Date', 'Weight', 'Amount', 'Description', 'Waste Type', 'Source file', 'Status'];
+    const header = ['Document type', 'Vendor', 'Ticket number', 'Invoice number', 'Purchase Order', 'Job Number', 'Date', 'Weight', 'Amount', 'Description', 'Waste Category', 'Source file', 'Status'];
     const v = (s: string) => `"${s.replaceAll('"', '""')}"`;
-    const body = rows.map((r) => [r.extraction.documentType, ...fields.map((f) => r.extraction[f.key]), r.fileName, r.status].map(v).join(','));
+    const body = rows.map((r) => [
+      r.extraction.documentType,
+      ...fields.map((f) => r.extraction[f.key]),
+      r.extraction.wasteCategory ? WASTE_CATEGORY_LABELS[r.extraction.wasteCategory] : 'Needs review',
+      r.fileName,
+      r.status,
+    ].map(v).join(','));
     const blob = new Blob([[header.map(v).join(','), ...body].join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1472,11 +1554,13 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
             </div>
           </div>
 
-          {/* Stat cards */}
-          <div className="mb-5 grid grid-cols-3 gap-3">
+          {/* Stat cards — C&D and Inert amounts are always shown as separate
+              totals, never merged into one blended "waste" figure. */}
+          <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatCard label="Tickets" value={String(totals.count).padStart(2, '0')} detail="in this batch" tone="ink" />
             <StatCard label="With Weight" value={String(totals.withWeight).padStart(2, '0')} detail={totals.count ? `${Math.round(totals.withWeight / totals.count * 100)}% of register` : 'awaiting upload'} tone="slate" />
-            <StatCard label="Total Amount" value={totals.amount} detail="ready for export" tone="red" />
+            <StatCard label="C&D Landfill" value={totals.cdAmount} detail="amount, this batch" tone="red" />
+            <StatCard label="Inert / Recycling" value={totals.inertAmount} detail="amount, this batch" tone="slate" />
           </div>
 
           {/* Main content grid */}
@@ -1545,7 +1629,7 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
                   <AlertTriangle size={14} /> Could not load the saved register. Showing this session's data only.
                 </div>
               )}
-              <TicketRegister rows={rows} onChange={updateField} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
+              <TicketRegister rows={rows} onChange={updateField} onCategoryChange={updateCategory} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
               <div className="mt-3.5 flex items-center justify-between gap-3">
                 <button
                   onClick={addManualRow}
