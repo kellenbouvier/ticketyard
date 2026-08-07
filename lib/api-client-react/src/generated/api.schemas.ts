@@ -9,6 +9,17 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface LoginInput {
+  /** @minLength 1 */
+  username: string;
+  /** @minLength 1 */
+  password: string;
+}
+
+export interface AuthUser {
+  user: string;
+}
+
 export type TicketExtractionInputMediaType = typeof TicketExtractionInputMediaType[keyof typeof TicketExtractionInputMediaType];
 
 

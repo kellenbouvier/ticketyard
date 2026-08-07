@@ -18,6 +18,37 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Log in with the shared app credential
+ */
+
+
+
+
+export const LoginBody = zod.object({
+  "username": zod.string().min(1),
+  "password": zod.string().min(1)
+})
+
+export const LoginResponse = zod.object({
+  "user": zod.string()
+})
+
+
+/**
+ * @summary Clear the session cookie
+ */
+export const LogoutResponse = zod.void()
+
+
+/**
+ * @summary Return the current session's user, if any
+ */
+export const GetCurrentUserResponse = zod.object({
+  "user": zod.string()
+})
+
+
+/**
  * Runs free local OCR on a ticket image and returns the supported ticket fields plus deterministic waste classification.
  * @summary Extract ticket fields from an image
  */
