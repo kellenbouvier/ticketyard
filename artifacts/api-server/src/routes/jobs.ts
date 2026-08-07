@@ -111,16 +111,24 @@ router.post("/years/:yearId/jobs", async (req, res) => {
     res.status(400).json({ error: "jobName is required" });
     return;
   }
-  const [created] = await db
-    .insert(jobsTable)
-    .values({ yearId, jobNumber: jobNumber.trim(), jobName: jobName.trim() })
-    .returning({
-      id: jobsTable.id,
-      yearId: jobsTable.yearId,
-      jobNumber: jobsTable.jobNumber,
-      jobName: jobsTable.jobName,
-    });
-  res.status(201).json(created);
+  try {
+    const [created] = await db
+      .insert(jobsTable)
+      .values({ yearId, jobNumber: jobNumber.trim(), jobName: jobName.trim() })
+      .returning({
+        id: jobsTable.id,
+        yearId: jobsTable.yearId,
+        jobNumber: jobsTable.jobNumber,
+        jobName: jobsTable.jobName,
+      });
+    res.status(201).json(created);
+  } catch (err: unknown) {
+    if (isUniqueViolation(err)) {
+      res.status(409).json({ error: `Job ${jobNumber.trim()} already exists for this year` });
+    } else {
+      throw err;
+    }
+  }
 });
 
 // PUT /years/:yearId/jobs/:jobId — update a job
@@ -136,21 +144,29 @@ router.put("/years/:yearId/jobs/:jobId", async (req, res) => {
     res.status(400).json({ error: "jobName is required" });
     return;
   }
-  const [updated] = await db
-    .update(jobsTable)
-    .set({ jobNumber: jobNumber.trim(), jobName: jobName.trim() })
-    .where(eq(jobsTable.id, jobId))
-    .returning({
-      id: jobsTable.id,
-      yearId: jobsTable.yearId,
-      jobNumber: jobsTable.jobNumber,
-      jobName: jobsTable.jobName,
-    });
-  if (!updated || updated.yearId !== yearId) {
-    res.status(404).json({ error: "Job not found" });
-    return;
+  try {
+    const [updated] = await db
+      .update(jobsTable)
+      .set({ jobNumber: jobNumber.trim(), jobName: jobName.trim() })
+      .where(eq(jobsTable.id, jobId))
+      .returning({
+        id: jobsTable.id,
+        yearId: jobsTable.yearId,
+        jobNumber: jobsTable.jobNumber,
+        jobName: jobsTable.jobName,
+      });
+    if (!updated || updated.yearId !== yearId) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+    res.json(updated);
+  } catch (err: unknown) {
+    if (isUniqueViolation(err)) {
+      res.status(409).json({ error: `Job ${jobNumber.trim()} already exists for this year` });
+    } else {
+      throw err;
+    }
   }
-  res.json(updated);
 });
 
 // DELETE /years/:yearId/jobs/:jobId — delete a job

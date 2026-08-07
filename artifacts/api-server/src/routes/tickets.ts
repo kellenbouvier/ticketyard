@@ -5,6 +5,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { ExtractTicketBody, ExtractTicketResponse } from "@workspace/api-zod";
+import type { WasteCategory } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -27,7 +28,7 @@ type TicketFields = {
   weight: string;
   amount: string;
   description: string;
-  wasteType: string;
+  wasteCategory: WasteCategory;
 };
 
 const emptyFields: TicketFields = {
@@ -41,7 +42,11 @@ const emptyFields: TicketFields = {
   weight: "",
   amount: "",
   description: "",
-  wasteType: "",
+  // D.H. Griffin tracks C&D landfill and inert/concrete recycling
+  // separately and every ticket needs exactly one of the two — see
+  // classifyWasteCategory() below. Even a wholly unreadable ticket still
+  // gets the default category; it stays manually overridable in the UI.
+  wasteCategory: "C&D",
 };
 
 function extensionForMediaType(mediaType: string): string {
@@ -476,9 +481,18 @@ function isFieldHeading(line: string): boolean {
 }
 
 function isMetroGreenLayout(text: string): boolean {
+  // Match "Metro Green Recycling" tolerantly: OCR reliably gets "metro" and
+  // "green" right, but "Recycling" is the word most often corrupted by
+  // OCR noise, so match its first syllable loosely rather than requiring an
+  // exact (or exactly-noisy) spelling. A regex requiring a non-letter
+  // between "re" and "yc" can never match a cleanly OCR'd "Recycling" —
+  // that was the bug: it only matched runs where OCR had already corrupted
+  // the word, so a clean OCR pass of the same ticket failed layout
+  // detection entirely and fell through to the generic (unsafe) parser.
   return (
     /metro/i.test(text) &&
-    /re[\s\W_]{0,8}yc/i.test(text)
+    /green/i.test(text) &&
+    /re\s*c?\s*y\s*c/i.test(text)
   );
 }
 
@@ -606,52 +620,84 @@ function looksLikeDocumentHeading(line: string): boolean {
   return isFieldHeading(line);
 }
 
-function classifyWasteType(vendor: string): string {
+// D.H. Griffin tracks disposal cost, hauling cost, billing, and
+// profitability separately for C&D landfill vs. inert/concrete recycling
+// — the two must never be merged anywhere downstream. This classifier is
+// a deterministic vendor rule (never AI, never OCR-text guessing) and
+// always returns one of the two categories; there is no third "unknown"
+// value for a freshly-classified ticket, because the UI lets the user
+// manually override the default in one click, and picking a default is
+// safer than surfacing yet another unclassified state to review.
+export function classifyWasteCategory(vendor: string): WasteCategory {
   const normalizedVendor = vendor.replace(/\s+/g, " ").trim();
-  if (!normalizedVendor) return "";
-  if (/metro\s+green/i.test(normalizedVendor)) return "Inert Landfill";
-  if (/volk\s+and\s+materials/i.test(normalizedVendor)) {
-    return "Inert Landfill";
-  }
-  if (
-    /landfill|transfer\s+station|waste\s+disposal\s+facility/i.test(
-      normalizedVendor,
-    )
-  ) {
-    return "Landfill";
-  }
-  return "";
+  if (/metro\s+green/i.test(normalizedVendor)) return "Inert";
+  // Was previously mistyped as "volk and materials" and could never
+  // match any real vendor name — Vulcan Materials tickets silently fell
+  // through to the C&D default instead of being recognized as Inert.
+  if (/vulcan\s+materials/i.test(normalizedVendor)) return "Inert";
+  return "C&D";
+}
+
+// The functions below implement per-vendor *layout* rules (this ticket
+// format always prints X near label Y), not per-fixture *value* rules.
+// None of them may match against a specific known-good literal — every
+// captured value must come from a label or an unambiguous positional/shape
+// anchor that holds for any ticket from that vendor, not just the ones
+// this codebase happens to have been tested against. When nothing on the
+// page satisfies that anchor, the field is left blank.
+
+/** A decimal figure immediately followed by "Tons"/"Ton" — Gross/Tare/Net
+ * weigh figures on these tickets are plain numbers, so a number directly
+ * tagged "Tons" reliably identifies the net weight line without needing to
+ * know its value in advance. */
+function extractTonsWeight(normalized: string): string {
+  const match = normalized.match(/\b(\d{1,3}(?:,\d{3})?\.\d{1,2})\s+tons?\b/i);
+  return match ? `${match[1]} Tons` : "";
 }
 
 function parseMetroGreenFields(text: string): Partial<TicketFields> {
   const normalized = normalizedLayoutText(text);
-  const ticketCandidates = normalized.match(/\b1\d{6,7}\b/g) ?? [];
-  const ticketCorrections: Record<string, string> = {
-    "1382660": "1362560",
-    "13682860": "1362560",
-  };
-  const ticketNumber =
-    ticketCandidates
-      .map((candidate) => ticketCorrections[candidate] ?? candidate)
-      .find((candidate) => candidate === "1362560") ?? "";
 
+  // The printed ticket ID is a bare 7-8 digit number starting with "1"
+  // (Gross/Tare/Net/Order Number figures on this layout never take that
+  // shape). Only trust it when exactly one such candidate appears — if OCR
+  // produced more than one, we can't tell which is the real ticket number
+  // without guessing, so leave it blank.
+  const ticketCandidates = [...new Set(normalized.match(/\b1\d{6,7}\b/g) ?? [])];
+  const ticketNumber = ticketCandidates.length === 1 ? ticketCandidates[0] : "";
+
+  // "Ticket Date" (or similarly labeled) is not reliably printed on this
+  // layout's header in a clean, unfragmented way; rather than reconstruct a
+  // date from fragmented OCR tokens, only accept a fully-formed date next
+  // to an explicit label.
   const date =
-    ticketNumber === "1362560" &&
-    (/\b712\b[\s\S]{0,40}\b(?:0|02)\b/i.test(text) ||
-      /\b7(?:1)?2(?:1)?2026\b/i.test(normalized))
-      ? "07/02/2026"
-      : "";
-  const weightMatch = normalized.match(/\b(14\.85)\s+tons?\b/i);
-  const description = /concrete\s+w\/?\s*wire\s+or\s+re/i.test(normalized)
-    ? "Concrete w/ Wire or Rebar"
-    : "";
+    normalized.match(/ticket\s+date\s*[:#-]?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i)
+      ?.[1] ?? "";
+
+  const weight = extractTonsWeight(normalized);
+
+  // Only recognize material descriptions from a short, explicit keyword
+  // list — this stays deterministic (no AI, no free-text OCR guessing)
+  // while covering the common C&D material types this vendor handles.
+  // Anything not on the list, or fragmented by OCR (e.g. an ellipsis before
+  // a plausible next word), is left blank rather than reconstructed.
+  let description = "";
+  if (/concrete/i.test(normalized) && /wire|rebar/i.test(normalized)) {
+    description = "Concrete w/ Wire or Rebar";
+  } else if (/clean\s+concrete/i.test(normalized)) {
+    description = "Clean Concrete";
+  } else if (/concrete/i.test(normalized)) {
+    description = "Concrete";
+  } else if (/asphalt/i.test(normalized)) {
+    description = "Asphalt";
+  }
 
   return {
     documentType: "ticket",
     vendor: "Metro Green Recycling, LLC",
     ticketNumber,
     date,
-    weight: weightMatch ? `${weightMatch[1]} Tons` : "",
+    weight,
     amount: "",
     description,
   };
@@ -659,25 +705,63 @@ function parseMetroGreenFields(text: string): Partial<TicketFields> {
 
 function parseMetroGreenInvoiceFields(text: string): Partial<TicketFields> {
   const normalized = normalizedLayoutText(text);
-  const invoiceNumberCandidates = normalized.match(
-    /\b(?:27530|21530|2150)\b/g,
-  ) ?? [];
-  const invoiceNumber = invoiceNumberCandidates
-    .map((candidate) => (candidate === "21530" || candidate === "2150" ? "27530" : candidate))
-    .find((candidate) => candidate === "27530") ?? "";
-  const purchaseOrder = normalized.match(
-    /\b(25-?21458)\b/i,
-  )?.[1]
-    ? "25-21458"
-    : "";
-  const jobNumber = normalized.match(/\b(26-25-1325)\b/i)?.[1] ?? "";
-  const date = normalized.match(/\b(07)[/-](31)[/-](2026)\b/i)
-    ? "07/31/2026"
-    : "";
+  const lines = cleanOcrLines(text);
+
+  // This vendor's invoices print an accounting-system row with columns
+  // "Vendor  Invoice  Purchase Order  Inv Date  Amount  Tax ...". Restrict
+  // invoice/PO/date extraction to the row right after that header (rather
+  // than scanning the whole page for a number of roughly the right shape,
+  // which can accidentally grab an unrelated number — e.g. a zip code
+  // matches "5 digits" just as well as a real invoice number). The header
+  // is re-OCR'd from several image variants/crops, so it can appear more
+  // than once with different neighboring lines — try each occurrence and
+  // use the first one whose following row actually contains data.
+  let invoiceNumber = "";
+  let purchaseOrder = "";
+  let date = "";
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!(/vendor/i.test(line) && /invoice/i.test(line) && /purchase/i.test(line))) continue;
+
+    const row = lines.slice(i + 1, i + 3).join(" ");
+    const inv = row.match(/\b(\d{5})\b/)?.[1];
+    const po = row.match(/\b(\d{2}-\d{4,6})\b/)?.[1];
+    if (!inv && !po) continue;
+
+    invoiceNumber = inv ?? "";
+    purchaseOrder = po ?? "";
+    const dateMatch = row.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/);
+    date = dateMatch ? dateMatch.slice(1).join("/") : "";
+    break;
+  }
+
+  // The job number is not printed with its own clean label on this layout —
+  // it appears as a bare "##-##-####" token in the accounting-summary
+  // section. That shape is ambiguous with a date written the same way
+  // (e.g. "07-31-2026"), so only trust it when the identical token is
+  // printed more than once (this layout repeats the job number at both the
+  // start and end of its summary row); a token seen only once could just
+  // as easily be the date, so it's left blank rather than guessed.
+  const dashTokenCounts = new Map<string, number>();
+  for (const match of normalized.matchAll(/\b(\d{2}-\d{2}-\d{4})\b/g)) {
+    dashTokenCounts.set(match[1], (dashTokenCounts.get(match[1]) ?? 0) + 1);
+  }
+  const jobNumber =
+    [...dashTokenCounts.entries()].find(([, count]) => count >= 2)?.[0] ?? "";
+
+  // Combined multi-page invoices should use the accounting-system total,
+  // not an arithmetic sum of the individual line items on any one page.
   const totalMatch =
     normalized.match(/invoice\s+total\s+\$?\s*([\d,]+\.\d{2})/i) ??
     normalized.match(/\btotal\s+([\d,]+\.\d{2})\b/i) ??
     normalized.match(/\bamount\s+tax\s+discount\s+[\w~.-]*\s+([\d,]+\.\d{2})\b/i);
+
+  let description = "";
+  if (/clean\s+concrete/i.test(normalized)) {
+    description = "Clean Concrete";
+  } else if (/concrete/i.test(normalized)) {
+    description = "Concrete";
+  }
 
   return {
     documentType: "invoice",
@@ -689,30 +773,50 @@ function parseMetroGreenInvoiceFields(text: string): Partial<TicketFields> {
     date,
     weight: "",
     amount: totalMatch ? `$${totalMatch[1]}` : "",
-    description: /(?:clean|cieen|clsen)\s+concrete/i.test(normalized)
-      ? "Clean Concrete"
-      : "",
+    description,
   };
 }
 
 function parseWillowOakFields(text: string): Partial<TicketFields> {
   const normalized = normalizedLayoutText(text);
-  const ticketNumber =
-    normalized.match(/(?:vot|veth|ticket)\s*#?\s*(944952)\b/i)?.[1] ??
-    (/\bwillow\s+oak\s+landfill\b/i.test(normalized) &&
-    /\b944952\b/.test(normalized)
-      ? "944952"
-      : "");
-  const date = /ticket\s+date\s+06\/22\/202[^\d\s]/i.test(normalized)
-    ? "06/22/2026"
-    : "";
-  const weightMatch = normalized.match(/\b(4\.49)\s+tons?\b/i);
-  const productMatch = normalized.match(/\b(2000T-C&D\s*-\s*Mixed)\b/i);
-  const taxAndSubtotal = normalized.match(
-    /\b(7\.86)\s+\$(118\.13)\b/i,
+  // Line-based scans must run against the original (newline-preserving)
+  // text — normalizedLayoutText() collapses all newlines into spaces, so
+  // cleanOcrLines(normalized) would return the whole document as one line.
+  const lines = cleanOcrLines(text);
+
+  // This layout's ticket number is printed in the header block (near the
+  // facility name/address/phone) before the "Customer Name" line, without
+  // a clean OCR'd label of its own. Anchor on that header region instead
+  // of the value: a lone 5-7 digit token appearing before "Customer Name".
+  const customerNameIndex = lines.findIndex((line) => /customer\s*name/i.test(line));
+  const headerLines = customerNameIndex >= 0 ? lines.slice(0, customerNameIndex) : lines.slice(0, 6);
+  let ticketNumber = "";
+  for (const line of headerLines) {
+    const match = line.match(/\b(\d{5,7})\b/);
+    if (match) {
+      ticketNumber = match[1];
+      break;
+    }
+  }
+
+  const date =
+    normalized.match(/ticket\s+date\s*[:#-]?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i)?.[1] ?? "";
+
+  const weight = extractTonsWeight(normalized);
+
+  // Product/material codes on this layout look like "2000T-C&D - Mixed":
+  // a numeric code, "T-", then a material label. Capture that shape
+  // generically instead of one hardcoded product string.
+  const productMatch = normalized.match(
+    /\b(\d{3,5}T-[A-Z0-9&]+(?:\s*-\s*[A-Za-z]+)?)\b/i,
   );
-  const amount = taxAndSubtotal
-    ? `$${(Number(taxAndSubtotal[1]) + Number(taxAndSubtotal[2])).toFixed(2)}`
+
+  // The product/line-item row prints "<tax> $<amount>" (e.g. "7.86
+  // $118.13"); the ticket total is tax + line amount. Capture both figures
+  // generically rather than requiring their exact values.
+  const taxAndLineAmount = normalized.match(/\b(\d{1,4}\.\d{2})\s+\$(\d{1,6}\.\d{2})\b/);
+  const amount = taxAndLineAmount
+    ? `$${(Number(taxAndLineAmount[1]) + Number(taxAndLineAmount[2])).toFixed(2)}`
     : "";
 
   return {
@@ -720,7 +824,7 @@ function parseWillowOakFields(text: string): Partial<TicketFields> {
     vendor: "Willow Oak Landfill",
     ticketNumber,
     date,
-    weight: weightMatch ? `${weightMatch[1]} Tons` : "",
+    weight,
     amount,
     description: productMatch
       ? productMatch[1].replace(/\s+/g, " ")
@@ -790,7 +894,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
     return ExtractTicketResponse.parse({
       ...emptyFields,
       ...layoutFields,
-      wasteType: classifyWasteType(layoutFields.vendor ?? ""),
+      wasteCategory: classifyWasteCategory(layoutFields.vendor ?? ""),
     });
   }
 
@@ -799,10 +903,14 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
   // Do NOT guess based on nearby text, all-caps lines, or the first matching
   // token found anywhere in the OCR output. A blank field is always better
   // than an incorrect one — the user can edit it.
+  // "Customer" is deliberately excluded: on real tickets it names the
+  // receiving/billed company (e.g. "Customer: D.H. Griffin"), not the
+  // hauler/vendor who issued the ticket — treating it as a vendor synonym
+  // previously caused confident, wrong (non-blank) vendor values.
   const vendor =
     valueFromLine(
       lines,
-      /^(?:vendor|company|hauler|supplier|facility|customer|from)\s*[:#-]?\s*(.*)$/i,
+      /^(?:vendor|company|hauler|supplier|facility|from)\s*[:#-]?\s*(.*)$/i,
     ) || "";
 
   const ticketNumber =
@@ -847,7 +955,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
       lines,
       /^(?:description|material|materials|load|contents|waste\s+type|product)\s*[:#-]?\s*(.*)$/i,
     ) || "";
-  const wasteType = classifyWasteType(vendor);
+  const wasteCategory = classifyWasteCategory(vendor);
 
   return ExtractTicketResponse.parse({
     ...emptyFields,
@@ -861,7 +969,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
     weight,
     amount,
     description,
-    wasteType,
+    wasteCategory,
   });
 }
 
@@ -907,6 +1015,7 @@ router.post("/tickets/extract", async (req, res) => {
       {
         fileName,
         rawOcrText: ocrText,
+        alternateTexts: ocrResult.alternateTexts,
       },
       "Raw OCR text before ticket field parsing",
     );

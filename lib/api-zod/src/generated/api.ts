@@ -18,6 +18,37 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Log in with the shared app credential
+ */
+
+
+
+
+export const LoginBody = zod.object({
+  "username": zod.string().min(1),
+  "password": zod.string().min(1)
+})
+
+export const LoginResponse = zod.object({
+  "user": zod.string()
+})
+
+
+/**
+ * @summary Clear the session cookie
+ */
+export const LogoutResponse = zod.void()
+
+
+/**
+ * @summary Return the current session's user, if any
+ */
+export const GetCurrentUserResponse = zod.object({
+  "user": zod.string()
+})
+
+
+/**
  * Runs free local OCR on a ticket image and returns the supported ticket fields plus deterministic waste classification.
  * @summary Extract ticket fields from an image
  */
@@ -42,7 +73,7 @@ export const ExtractTicketResponse = zod.object({
   "weight": zod.string(),
   "amount": zod.string(),
   "description": zod.string(),
-  "wasteType": zod.string().describe('Deterministic classification based on the extracted vendor.')
+  "wasteCategory": zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.')
 })
 
 
@@ -158,5 +189,142 @@ export const DeleteJobParams = zod.object({
 })
 
 export const DeleteJobResponse = zod.void()
+
+
+/**
+ * @summary List ticket register rows for a job
+ */
+export const ListTicketsParams = zod.object({
+  "jobId": zod.coerce.number().int()
+})
+
+export const ListTicketsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int(),
+  "fileName": zod.string(),
+  "status": zod.enum(['Reading', 'Processed', 'Failed', 'Manual']),
+  "error": zod.string().nullable(),
+  "documentType": zod.string(),
+  "vendor": zod.string(),
+  "ticketNumber": zod.string(),
+  "invoiceNumber": zod.string(),
+  "purchaseOrder": zod.string(),
+  "jobNumber": zod.string(),
+  "date": zod.string(),
+  "weight": zod.string(),
+  "amount": zod.string(),
+  "description": zod.string(),
+  "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]),
+  "createdAt": zod.coerce.date()
+})
+export const ListTicketsResponse = zod.array(ListTicketsResponseItem)
+
+
+/**
+ * @summary Add a ticket register row to a job
+ */
+export const CreateTicketRecordParams = zod.object({
+  "jobId": zod.coerce.number().int()
+})
+
+
+
+
+export const CreateTicketRecordBody = zod.object({
+  "fileName": zod.string().min(1),
+  "status": zod.enum(['Reading', 'Processed', 'Failed', 'Manual']),
+  "error": zod.string().nullish(),
+  "documentType": zod.string().optional(),
+  "vendor": zod.string().optional(),
+  "ticketNumber": zod.string().optional(),
+  "invoiceNumber": zod.string().optional(),
+  "purchaseOrder": zod.string().optional(),
+  "jobNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "weight": zod.string().optional(),
+  "amount": zod.string().optional(),
+  "description": zod.string().optional(),
+  "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]).optional()
+})
+
+export const CreateTicketRecordResponse = zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int(),
+  "fileName": zod.string(),
+  "status": zod.enum(['Reading', 'Processed', 'Failed', 'Manual']),
+  "error": zod.string().nullable(),
+  "documentType": zod.string(),
+  "vendor": zod.string(),
+  "ticketNumber": zod.string(),
+  "invoiceNumber": zod.string(),
+  "purchaseOrder": zod.string(),
+  "jobNumber": zod.string(),
+  "date": zod.string(),
+  "weight": zod.string(),
+  "amount": zod.string(),
+  "description": zod.string(),
+  "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update fields on a ticket register row
+ */
+export const UpdateTicketRecordParams = zod.object({
+  "jobId": zod.coerce.number().int(),
+  "ticketId": zod.coerce.number().int()
+})
+
+
+
+
+export const UpdateTicketRecordBody = zod.object({
+  "fileName": zod.string().min(1).optional(),
+  "status": zod.enum(['Reading', 'Processed', 'Failed', 'Manual']).optional(),
+  "error": zod.string().nullish(),
+  "documentType": zod.string().optional(),
+  "vendor": zod.string().optional(),
+  "ticketNumber": zod.string().optional(),
+  "invoiceNumber": zod.string().optional(),
+  "purchaseOrder": zod.string().optional(),
+  "jobNumber": zod.string().optional(),
+  "date": zod.string().optional(),
+  "weight": zod.string().optional(),
+  "amount": zod.string().optional(),
+  "description": zod.string().optional(),
+  "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]).optional()
+})
+
+export const UpdateTicketRecordResponse = zod.object({
+  "id": zod.number().int(),
+  "jobId": zod.number().int(),
+  "fileName": zod.string(),
+  "status": zod.enum(['Reading', 'Processed', 'Failed', 'Manual']),
+  "error": zod.string().nullable(),
+  "documentType": zod.string(),
+  "vendor": zod.string(),
+  "ticketNumber": zod.string(),
+  "invoiceNumber": zod.string(),
+  "purchaseOrder": zod.string(),
+  "jobNumber": zod.string(),
+  "date": zod.string(),
+  "weight": zod.string(),
+  "amount": zod.string(),
+  "description": zod.string(),
+  "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a ticket register row
+ */
+export const DeleteTicketRecordParams = zod.object({
+  "jobId": zod.coerce.number().int(),
+  "ticketId": zod.coerce.number().int()
+})
+
+export const DeleteTicketRecordResponse = zod.void()
 
 

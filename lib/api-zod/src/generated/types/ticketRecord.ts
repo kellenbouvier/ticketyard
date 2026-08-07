@@ -5,12 +5,16 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { TicketExtractionDocumentType } from './ticketExtractionDocumentType';
+import type { TicketRecordStatus } from './ticketRecordStatus';
 import type { WasteCategory } from './wasteCategory';
 
-export interface TicketExtraction {
-  /** Deterministic document classification. */
-  documentType: TicketExtractionDocumentType;
+export interface TicketRecord {
+  id: number;
+  jobId: number;
+  fileName: string;
+  status: TicketRecordStatus;
+  error: string | null;
+  documentType: string;
   vendor: string;
   ticketNumber: string;
   invoiceNumber: string;
@@ -20,5 +24,6 @@ export interface TicketExtraction {
   weight: string;
   amount: string;
   description: string;
-  wasteCategory: WasteCategory;
+  wasteCategory: WasteCategory | null;
+  createdAt: Date;
 }

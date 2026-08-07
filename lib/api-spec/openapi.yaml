@@ -10,12 +10,16 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Shared-credential login/logout for the app-wide auth gate
   - name: tickets
     description: Local OCR ticket extraction operations
   - name: years
     description: Year management
   - name: jobs
     description: Job management
+  - name: ticket-records
+    description: Persisted ticket register rows for a job
 paths:
   /healthz:
     get:
@@ -30,6 +34,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Log in with the shared app credential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in — session cookie set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "400":
+          description: Missing username or password
+        "401":
+          description: Invalid username or password
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Clear the session cookie
+      responses:
+        "204":
+          description: Logged out
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Return the current session's user, if any
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not authenticated
   /tickets/extract:
     post:
       operationId: extractTicket
@@ -202,6 +250,104 @@ paths:
           description: Deleted
         "404":
           description: Job not found
+  /jobs/{jobId}/tickets:
+    get:
+      operationId: listTickets
+      tags: [ticket-records]
+      summary: List ticket register rows for a job
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of ticket register rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TicketRecord"
+        "404":
+          description: Job not found
+    post:
+      operationId: createTicketRecord
+      tags: [ticket-records]
+      summary: Add a ticket register row to a job
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketRecordInput"
+      responses:
+        "201":
+          description: Created ticket register row
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketRecord"
+        "404":
+          description: Job not found
+  /jobs/{jobId}/tickets/{ticketId}:
+    patch:
+      operationId: updateTicketRecord
+      tags: [ticket-records]
+      summary: Update fields on a ticket register row
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTicketRecordInput"
+      responses:
+        "200":
+          description: Updated ticket register row
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketRecord"
+        "404":
+          description: Ticket register row not found
+    delete:
+      operationId: deleteTicketRecord
+      tags: [ticket-records]
+      summary: Delete a ticket register row
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Ticket register row not found
 components:
   schemas:
     HealthStatus:
@@ -211,6 +357,37 @@ components:
           type: string
       required:
         - status
+    LoginInput:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+      required:
+        - username
+        - password
+    AuthUser:
+      type: object
+      properties:
+        user:
+          type: string
+      required:
+        - user
+    WasteCategory:
+      type: string
+      enum:
+        - "C&D"
+        - "Inert"
+      description: >-
+        Disposal category. "C&D" = general construction/demolition debris
+        to a traditional landfill. "Inert" = clean concrete, asphalt,
+        brick, rock, or clean fill taken to an inert landfill / recycling
+        facility. Disposal cost, hauling cost, billing, and profitability
+        are tracked separately per category and must never be summed
+        together.
     TicketExtractionInput:
       type: object
       properties:
@@ -259,9 +436,8 @@ components:
           type: string
         description:
           type: string
-        wasteType:
-          type: string
-          description: Deterministic classification based on the extracted vendor.
+        wasteCategory:
+          $ref: "#/components/schemas/WasteCategory"
       required:
         - documentType
         - vendor
@@ -273,7 +449,7 @@ components:
         - weight
         - amount
         - description
-        - wasteType
+        - wasteCategory
     Year:
       type: object
       properties:
@@ -333,3 +509,142 @@ components:
       required:
         - jobNumber
         - jobName
+    TicketRecordStatus:
+      type: string
+      enum:
+        - Reading
+        - Processed
+        - Failed
+        - Manual
+    TicketRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        fileName:
+          type: string
+        status:
+          $ref: "#/components/schemas/TicketRecordStatus"
+        error:
+          type: string
+          nullable: true
+        documentType:
+          type: string
+        vendor:
+          type: string
+        ticketNumber:
+          type: string
+        invoiceNumber:
+          type: string
+        purchaseOrder:
+          type: string
+        jobNumber:
+          type: string
+        date:
+          type: string
+        weight:
+          type: string
+        amount:
+          type: string
+        description:
+          type: string
+        wasteCategory:
+          oneOf:
+            - $ref: "#/components/schemas/WasteCategory"
+            - type: "null"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - jobId
+        - fileName
+        - status
+        - error
+        - documentType
+        - vendor
+        - ticketNumber
+        - invoiceNumber
+        - purchaseOrder
+        - jobNumber
+        - date
+        - weight
+        - amount
+        - description
+        - wasteCategory
+        - createdAt
+    CreateTicketRecordInput:
+      type: object
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+        status:
+          $ref: "#/components/schemas/TicketRecordStatus"
+        error:
+          type: string
+          nullable: true
+        documentType:
+          type: string
+        vendor:
+          type: string
+        ticketNumber:
+          type: string
+        invoiceNumber:
+          type: string
+        purchaseOrder:
+          type: string
+        jobNumber:
+          type: string
+        date:
+          type: string
+        weight:
+          type: string
+        amount:
+          type: string
+        description:
+          type: string
+        wasteCategory:
+          oneOf:
+            - $ref: "#/components/schemas/WasteCategory"
+            - type: "null"
+      required:
+        - fileName
+        - status
+    UpdateTicketRecordInput:
+      type: object
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+        status:
+          $ref: "#/components/schemas/TicketRecordStatus"
+        error:
+          type: string
+          nullable: true
+        documentType:
+          type: string
+        vendor:
+          type: string
+        ticketNumber:
+          type: string
+        invoiceNumber:
+          type: string
+        purchaseOrder:
+          type: string
+        jobNumber:
+          type: string
+        date:
+          type: string
+        weight:
+          type: string
+        amount:
+          type: string
+        description:
+          type: string
+        wasteCategory:
+          oneOf:
+            - $ref: "#/components/schemas/WasteCategory"
+            - type: "null"

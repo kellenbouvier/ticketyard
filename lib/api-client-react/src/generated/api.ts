@@ -20,13 +20,18 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AuthUser,
   CreateJobInput,
+  CreateTicketRecordInput,
   CreateYearInput,
   HealthStatus,
   Job,
+  LoginInput,
   TicketExtraction,
   TicketExtractionInput,
+  TicketRecord,
   UpdateJobInput,
+  UpdateTicketRecordInput,
   Year
 } from './api.schemas';
 
@@ -123,6 +128,225 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLoginUrl = () => {
+
+
+
+
+  return `/api/auth/login`
+}
+
+/**
+ * @summary Log in with the shared app credential
+ */
+export const login = async (loginInput: LoginInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthUser> => {
+
+  return customFetch<AuthUser>(getLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(loginInput)
+  }
+);}
+
+
+
+
+
+export const getLoginMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginInput>}, TContext> => {
+
+const mutationKey = ['login'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof login>>, {data: BodyType<LoginInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  login(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LoginMutationResult = NonNullable<Awaited<ReturnType<typeof login>>>
+    export type LoginMutationBody = BodyType<LoginInput>
+    export type LoginMutationError = ErrorType<void>
+
+    /**
+ * @summary Log in with the shared app credential
+ */
+export const useLogin = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof login>>,
+        TError,
+        {data: BodyType<LoginInput>},
+        TContext
+      > => {
+      return useMutation(getLoginMutationOptions(options));
+    }
+
+export const getLogoutUrl = () => {
+
+
+
+
+  return `/api/auth/logout`
+}
+
+/**
+ * @summary Clear the session cookie
+ */
+export const logout = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getLogoutUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLogoutMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext> => {
+
+const mutationKey = ['logout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logout>>, void> = () => {
+
+
+          return  logout(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogoutMutationResult = NonNullable<Awaited<ReturnType<typeof logout>>>
+
+    export type LogoutMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Clear the session cookie
+ */
+export const useLogout = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof logout>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getLogoutMutationOptions(options));
+    }
+
+export const getGetCurrentUserUrl = () => {
+
+
+
+
+  return `/api/auth/me`
+}
+
+/**
+ * @summary Return the current session's user, if any
+ */
+export const getCurrentUser = async ( options?: Parameters<typeof customFetch>[1]): Promise<AuthUser> => {
+
+  return customFetch<AuthUser>(getGetCurrentUserUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCurrentUserQueryKey = () => {
+    return [
+    `/api/auth/me`
+    ] as const;
+    }
+
+
+export const getGetCurrentUserQueryOptions = <TData = Awaited<ReturnType<typeof getCurrentUser>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentUser>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCurrentUserQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCurrentUser>>> = ({ signal }) => getCurrentUser({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCurrentUser>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCurrentUserQueryResult = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>
+export type GetCurrentUserQueryError = ErrorType<void>
+
+
+/**
+ * @summary Return the current session's user, if any
+ */
+
+export function useGetCurrentUser<TData = Awaited<ReturnType<typeof getCurrentUser>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentUser>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCurrentUserQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -720,5 +944,301 @@ export const useDeleteJob = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteJobMutationOptions(options));
+    }
+
+export const getListTicketsUrl = (jobId: number,) => {
+
+
+
+
+  return `/api/jobs/${jobId}/tickets`
+}
+
+/**
+ * @summary List ticket register rows for a job
+ */
+export const listTickets = async (jobId: number, options?: Parameters<typeof customFetch>[1]): Promise<TicketRecord[]> => {
+
+  return customFetch<TicketRecord[]>(getListTicketsUrl(jobId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTicketsQueryKey = (jobId: number,) => {
+    return [
+    `/api/jobs/${jobId}/tickets`
+    ] as const;
+    }
+
+
+export const getListTicketsQueryOptions = <TData = Awaited<ReturnType<typeof listTickets>>, TError = ErrorType<void>>(jobId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTicketsQueryKey(jobId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTickets>>> = ({ signal }) => listTickets(jobId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: jobId !== null && jobId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTickets>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTicketsQueryResult = NonNullable<Awaited<ReturnType<typeof listTickets>>>
+export type ListTicketsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List ticket register rows for a job
+ */
+
+export function useListTickets<TData = Awaited<ReturnType<typeof listTickets>>, TError = ErrorType<void>>(
+ jobId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTicketsQueryOptions(jobId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateTicketRecordUrl = (jobId: number,) => {
+
+
+
+
+  return `/api/jobs/${jobId}/tickets`
+}
+
+/**
+ * @summary Add a ticket register row to a job
+ */
+export const createTicketRecord = async (jobId: number,
+    createTicketRecordInput: CreateTicketRecordInput, options?: Parameters<typeof customFetch>[1]): Promise<TicketRecord> => {
+
+  return customFetch<TicketRecord>(getCreateTicketRecordUrl(jobId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createTicketRecordInput)
+  }
+);}
+
+
+
+
+
+export const getCreateTicketRecordMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTicketRecord>>, TError,{jobId: number;data: BodyType<CreateTicketRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTicketRecord>>, TError,{jobId: number;data: BodyType<CreateTicketRecordInput>}, TContext> => {
+
+const mutationKey = ['createTicketRecord'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTicketRecord>>, {jobId: number;data: BodyType<CreateTicketRecordInput>}> = (props) => {
+          const {jobId,data} = props ?? {};
+
+          return  createTicketRecord(jobId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTicketRecordMutationResult = NonNullable<Awaited<ReturnType<typeof createTicketRecord>>>
+    export type CreateTicketRecordMutationBody = BodyType<CreateTicketRecordInput>
+    export type CreateTicketRecordMutationError = ErrorType<void>
+
+    /**
+ * @summary Add a ticket register row to a job
+ */
+export const useCreateTicketRecord = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTicketRecord>>, TError,{jobId: number;data: BodyType<CreateTicketRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTicketRecord>>,
+        TError,
+        {jobId: number;data: BodyType<CreateTicketRecordInput>},
+        TContext
+      > => {
+      return useMutation(getCreateTicketRecordMutationOptions(options));
+    }
+
+export const getUpdateTicketRecordUrl = (jobId: number,
+    ticketId: number,) => {
+
+
+
+
+  return `/api/jobs/${jobId}/tickets/${ticketId}`
+}
+
+/**
+ * @summary Update fields on a ticket register row
+ */
+export const updateTicketRecord = async (jobId: number,
+    ticketId: number,
+    updateTicketRecordInput: UpdateTicketRecordInput, options?: Parameters<typeof customFetch>[1]): Promise<TicketRecord> => {
+
+  return customFetch<TicketRecord>(getUpdateTicketRecordUrl(jobId,ticketId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateTicketRecordInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateTicketRecordMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicketRecord>>, TError,{jobId: number;ticketId: number;data: BodyType<UpdateTicketRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTicketRecord>>, TError,{jobId: number;ticketId: number;data: BodyType<UpdateTicketRecordInput>}, TContext> => {
+
+const mutationKey = ['updateTicketRecord'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTicketRecord>>, {jobId: number;ticketId: number;data: BodyType<UpdateTicketRecordInput>}> = (props) => {
+          const {jobId,ticketId,data} = props ?? {};
+
+          return  updateTicketRecord(jobId,ticketId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTicketRecordMutationResult = NonNullable<Awaited<ReturnType<typeof updateTicketRecord>>>
+    export type UpdateTicketRecordMutationBody = BodyType<UpdateTicketRecordInput>
+    export type UpdateTicketRecordMutationError = ErrorType<void>
+
+    /**
+ * @summary Update fields on a ticket register row
+ */
+export const useUpdateTicketRecord = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicketRecord>>, TError,{jobId: number;ticketId: number;data: BodyType<UpdateTicketRecordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTicketRecord>>,
+        TError,
+        {jobId: number;ticketId: number;data: BodyType<UpdateTicketRecordInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateTicketRecordMutationOptions(options));
+    }
+
+export const getDeleteTicketRecordUrl = (jobId: number,
+    ticketId: number,) => {
+
+
+
+
+  return `/api/jobs/${jobId}/tickets/${ticketId}`
+}
+
+/**
+ * @summary Delete a ticket register row
+ */
+export const deleteTicketRecord = async (jobId: number,
+    ticketId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteTicketRecordUrl(jobId,ticketId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteTicketRecordMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTicketRecord>>, TError,{jobId: number;ticketId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTicketRecord>>, TError,{jobId: number;ticketId: number}, TContext> => {
+
+const mutationKey = ['deleteTicketRecord'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTicketRecord>>, {jobId: number;ticketId: number}> = (props) => {
+          const {jobId,ticketId} = props ?? {};
+
+          return  deleteTicketRecord(jobId,ticketId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTicketRecordMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTicketRecord>>>
+
+    export type DeleteTicketRecordMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a ticket register row
+ */
+export const useDeleteTicketRecord = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTicketRecord>>, TError,{jobId: number;ticketId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTicketRecord>>,
+        TError,
+        {jobId: number;ticketId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteTicketRecordMutationOptions(options));
     }
 

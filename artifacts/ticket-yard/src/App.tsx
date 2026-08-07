@@ -9,14 +9,24 @@ import {
   useCreateJob,
   useUpdateJob,
   useDeleteJob,
+  useListTickets,
+  useCreateTicketRecord,
+  useUpdateTicketRecord,
+  useDeleteTicketRecord,
+  useLogin,
+  useLogout,
+  useGetCurrentUser,
   getListYearsQueryKey,
   getListJobsQueryKey,
+  getGetCurrentUserQueryKey,
 } from '@workspace/api-client-react';
 import type {
   Year,
   Job,
   TicketExtraction,
   TicketExtractionInput,
+  TicketRecord,
+  WasteCategory,
 } from '@workspace/api-client-react';
 import {
   AlertTriangle,
@@ -36,6 +46,8 @@ import {
   Home,
   Inbox,
   LoaderCircle,
+  LockKeyhole,
+  LogOut,
   Menu,
   MoreHorizontal,
   Pencil,
@@ -51,7 +63,7 @@ import {
   ZoomIn,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Route, Switch, Router as WouterRouter } from 'wouter';
+import { Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
@@ -61,17 +73,67 @@ const queryClient = new QueryClient();
 // ─── Row / extraction types ───────────────────────────────────────────────────
 
 type RowStatus = 'Reading' | 'Processed' | 'Failed' | 'Manual';
-type FieldKey = keyof TicketExtraction;
+// Waste category is edited through its own dedicated two-option selector
+// (never a free-text input — see WASTE_CATEGORY_OPTIONS), so it's handled
+// by a separate onCategoryChange callback rather than the generic
+// string-field FieldKey/onChange path the other fields share.
+type RowExtraction = Omit<TicketExtraction, 'wasteCategory'> & {
+  // Null only for rows restored from a legacy record that no vendor rule
+  // could confidently classify — "needs review", never guessed.
+  wasteCategory: WasteCategory | null;
+};
+type FieldKey = keyof Omit<TicketExtraction, 'wasteCategory'>;
 type TicketRow = {
   id: string;
+  /** DB id once this row has been persisted; undefined while a fresh
+   * upload is still being read (Reading) or if persisting it failed. */
+  serverId?: number;
+  /** True only for a row created from a just-uploaded file in this
+   * session — the source image itself is not persisted, so a row
+   * restored after reload has no real image to retry OCR against. */
+  hasSourceImage: boolean;
   fileName: string;
   preview: string;
   status: RowStatus;
-  extraction: TicketExtraction;
+  extraction: RowExtraction;
   error?: string;
 };
 
-const emptyExtraction: TicketExtraction = {
+// D.H. Griffin tracks disposal cost, hauling cost, billing, and
+// profitability separately for these two categories — they must never be
+// summed or displayed as one blended "waste" figure anywhere in the app.
+const WASTE_CATEGORY_LABELS: Record<WasteCategory, string> = {
+  'C&D': 'C&D Landfill',
+  Inert: 'Inert / Concrete Recycling',
+};
+const WASTE_CATEGORY_OPTIONS: WasteCategory[] = ['C&D', 'Inert'];
+
+function ticketRecordToRow(record: TicketRecord): TicketRow {
+  return {
+    id: `saved-${record.id}`,
+    serverId: record.id,
+    hasSourceImage: false,
+    fileName: record.fileName,
+    preview: samplePreview(record.status === 'Manual' ? 'MANUAL ENTRY' : 'SAVED RECORD'),
+    status: record.status,
+    error: record.error ?? undefined,
+    extraction: {
+      documentType: record.documentType as TicketExtraction['documentType'],
+      vendor: record.vendor,
+      ticketNumber: record.ticketNumber,
+      invoiceNumber: record.invoiceNumber,
+      purchaseOrder: record.purchaseOrder,
+      jobNumber: record.jobNumber,
+      date: record.date,
+      weight: record.weight,
+      amount: record.amount,
+      description: record.description,
+      wasteCategory: record.wasteCategory,
+    },
+  };
+}
+
+const emptyExtraction: RowExtraction = {
   documentType: 'ticket',
   vendor: '',
   ticketNumber: '',
@@ -82,7 +144,10 @@ const emptyExtraction: TicketExtraction = {
   weight: '',
   amount: '',
   description: '',
-  wasteType: '',
+  // New rows (manual or freshly OCR'd) always get a default category —
+  // it's always shown and always one click to override, never left as an
+  // ambiguous blank the way OCR text fields are.
+  wasteCategory: 'C&D',
 };
 
 const acceptedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -96,7 +161,6 @@ const fields: { key: FieldKey; label: string; short: string }[] = [
   { key: 'weight', label: 'Weight', short: 'Weight' },
   { key: 'amount', label: 'Amount', short: 'Amount' },
   { key: 'description', label: 'Description', short: 'Description' },
-  { key: 'wasteType', label: 'Waste Type', short: 'Waste Type' },
 ];
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -123,7 +187,7 @@ function readFileAsBase64(file: Blob): Promise<string> {
   });
 }
 
-const samplePreview = () =>
+const samplePreview = (label: string = 'MANUAL ENTRY') =>
   `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" width="700" height="460" viewBox="0 0 700 460">
       <rect width="700" height="460" fill="#e8e8e8"/>
@@ -131,7 +195,7 @@ const samplePreview = () =>
         <rect width="500" height="390" rx="3" fill="#f9f9f9"/>
         <rect x="24" y="24" width="452" height="55" fill="#C32020" opacity=".9"/>
         <path d="M28 111h430M28 145h350M28 179h408M28 240h430M28 274h390M28 308h240" stroke="#252b36" stroke-width="7" opacity=".4"/>
-        <text x="28" y="360" font-family="monospace" font-size="13" fill="#888">MANUAL ENTRY</text>
+        <text x="28" y="360" font-family="monospace" font-size="13" fill="#888">${label}</text>
       </g>
     </svg>
   `)}`;
@@ -270,6 +334,101 @@ function FormInput({ label, sublabel, ...props }: React.InputHTMLAttributes<HTML
       <input {...props} className="w-full rounded-md border border-[hsl(var(--border))] bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[hsl(var(--primary)/.6)] focus:ring-2 focus:ring-[hsl(var(--primary)/.12)]" />
     </div>
   );
+}
+
+// ─── Login / auth gate ─────────────────────────────────────────────────────────
+
+function LoginPage() {
+  const qc = useQueryClient();
+  const [, setLocation] = useLocation();
+  const login = useLogin();
+  // Already-authenticated users who land on /login directly (e.g. via
+  // back/forward navigation) go straight back to the app.
+  const { data: currentUser } = useGetCurrentUser({ query: { retry: false, queryKey: getGetCurrentUserQueryKey() } });
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await login.mutateAsync({ data: { username, password } });
+      await qc.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() });
+      setLocation('/');
+    } catch {
+      // Deliberately generic — never hint whether the username or the
+      // password was the one that didn't match.
+      setError('Invalid username or password.');
+    }
+  }, [login, password, qc, setLocation, username]);
+
+  if (currentUser) {
+    return <Redirect to="/" />;
+  }
+
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[hsl(var(--background))] px-4">
+      <div className="w-full max-w-sm animate-rise">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <img src="/dhg-logo.png" alt="D.H. Griffin Companies" className="h-12 w-auto" />
+          <h1 className="mt-4 text-[1.2rem] font-bold tracking-tight text-[hsl(var(--foreground))]">DHG Register</h1>
+          <p className="mt-1 text-[12px] text-[hsl(var(--muted-foreground))]">Sign in to continue.</p>
+        </div>
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4 rounded-xl border border-[hsl(var(--card-border))] bg-[hsl(var(--card))] p-6 shadow-sm">
+          <FormInput
+            label="Username"
+            autoFocus
+            autoComplete="username"
+            type="text"
+            value={username}
+            onChange={(e) => { setUsername(e.target.value); setError(''); }}
+          />
+          <FormInput
+            label="Password"
+            autoComplete="current-password"
+            type="password"
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError(''); }}
+          />
+          {error && <p className="text-[12px] text-[hsl(var(--destructive))]">{error}</p>}
+          <button
+            type="submit"
+            disabled={login.isPending || !username || !password}
+            className="flex w-full items-center justify-center gap-1.5 rounded-md bg-[hsl(var(--primary))] px-4 py-2.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-[hsl(var(--primary)/.9)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {login.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <LockKeyhole size={14} />}
+            Sign In
+          </button>
+        </form>
+        <p className="mt-5 text-center text-[10px] uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">D.H. Griffin Companies — DHG Register</p>
+      </div>
+    </div>
+  );
+}
+
+/** Gates app content behind a valid session. Mounted around every real
+ * route except /login itself; an unauthenticated visitor is redirected to
+ * an actual /login URL (not just a swapped-in component) so browser
+ * navigation, bookmarking, and back/forward behave normally. The API
+ * independently verifies the session cookie on every request regardless
+ * of what the client renders. */
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { data, isLoading, isError } = useGetCurrentUser({ query: { retry: false, queryKey: getGetCurrentUserQueryKey() } });
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-[hsl(var(--background))]">
+        <LoaderCircle size={22} className="animate-spin text-[hsl(var(--primary))]" />
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return <Redirect to="/login" />;
+  }
+
+  return <>{children}</>;
 }
 
 // ─── Home screen — year tabs + job list ───────────────────────────────────────
@@ -731,6 +890,10 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
   const { data: years = [], isLoading: yearsLoading, isError: yearsError } = useListYears();
   const createYear = useCreateYear();
   const deleteYear = useDeleteYear();
+  const logout = useLogout();
+  const handleLogout = useCallback(() => {
+    void logout.mutateAsync().finally(() => qc.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() }));
+  }, [logout, qc]);
 
   const [selectedYear, setSelectedYear] = useState<Year | null>(null);
   const [yearModal, setYearModal] = useState<AddYearModal>({ open: false });
@@ -835,6 +998,13 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
         {/* Status + avatar — inline top-right, no separate header bar */}
         <div className="flex justify-end items-center gap-3 px-8 pt-5 pb-0 shrink-0">
           <ApiStatus theme="light" />
+          <button
+            onClick={handleLogout}
+            title="Log out"
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-[hsl(var(--muted-foreground))] transition hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+          >
+            <LogOut size={13} /> Log out
+          </button>
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--primary)/.15)] border border-[hsl(var(--primary)/.25)] text-[hsl(var(--primary))]">
             <User size={16} strokeWidth={1.75} />
           </div>
@@ -974,6 +1144,12 @@ function Sidebar({ year, job, onNewBatch, onBackToJobs, onBackToYears }: {
   onBackToJobs: () => void;
   onBackToYears: () => void;
 }) {
+  const qc = useQueryClient();
+  const logout = useLogout();
+  const handleLogout = useCallback(() => {
+    void logout.mutateAsync().finally(() => qc.invalidateQueries({ queryKey: getGetCurrentUserQueryKey() }));
+  }, [logout, qc]);
+
   return (
     <aside className="hidden min-h-[100dvh] w-[220px] shrink-0 flex-col bg-[hsl(var(--sidebar))] md:flex">
       {/* Logo + app name */}
@@ -1031,6 +1207,9 @@ function Sidebar({ year, job, onNewBatch, onBackToJobs, onBackToYears }: {
             <button className="flex items-center gap-1.5 text-[11px] text-white/30 transition hover:text-white/60">
               <Settings2 size={13} /> Settings
             </button>
+            <button onClick={handleLogout} className="flex items-center gap-1.5 text-[11px] text-white/30 transition hover:text-white/60">
+              <LogOut size={13} /> Log out
+            </button>
           </div>
         </div>
       </div>
@@ -1040,9 +1219,36 @@ function Sidebar({ year, job, onNewBatch, onBackToJobs, onBackToYears }: {
 
 // ─── Ticket register table ────────────────────────────────────────────────────
 
-function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
+// Source(170px) + 9 generic fields + Category selector + Actions(108px) —
+// must have exactly as many tracks as cells rendered per row below.
+const REGISTER_GRID_COLS = 'grid-cols-[170px_1fr_.9fr_.9fr_.8fr_.85fr_.95fr_.75fr_.85fr_1.3fr_1.05fr_108px]';
+
+function WasteCategorySelect({ value, disabled, onChange, ariaLabel }: {
+  value: WasteCategory | null;
+  disabled: boolean;
+  onChange: (value: WasteCategory) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <select
+      aria-label={ariaLabel}
+      disabled={disabled}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value as WasteCategory)}
+      className={`ticket-field ${value ? '' : 'text-[hsl(var(--destructive))]'}`}
+    >
+      {!value && <option value="" disabled>Needs review</option>}
+      {WASTE_CATEGORY_OPTIONS.map((option) => (
+        <option key={option} value={option}>{WASTE_CATEGORY_LABELS[option]}</option>
+      ))}
+    </select>
+  );
+}
+
+function TicketRegister({ rows, onChange, onCategoryChange, onDelete, onRetry, onPreview }: {
   rows: TicketRow[];
   onChange: (id: string, field: FieldKey, value: string) => void;
+  onCategoryChange: (id: string, category: WasteCategory) => void;
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   onPreview: (row: TicketRow) => void;
@@ -1058,13 +1264,13 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
           <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">Review extracted data before export.</p>
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-[hsl(var(--muted-foreground))]">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Changes save locally
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Changes save to this job automatically
         </div>
       </div>
       <div className="overflow-x-auto">
-        <div className="min-w-[1100px]">
-          <div className="grid grid-cols-[170px_1.05fr_1.05fr_.85fr_.8fr_.82fr_1.3fr_1fr_108px] gap-3 bg-[hsl(var(--muted)/.5)] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">
-            <div>Source</div>{fields.map((f) => <div key={f.key}>{f.short}</div>)}<div className="text-right">Actions</div>
+        <div className="min-w-[1250px]">
+          <div className={`grid ${REGISTER_GRID_COLS} gap-3 bg-[hsl(var(--muted)/.5)] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]`}>
+            <div>Source</div>{fields.map((f) => <div key={f.key}>{f.short}</div>)}<div>Category</div><div className="text-right">Actions</div>
           </div>
           {rows.length === 0 && (
             <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
@@ -1076,7 +1282,7 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
             </div>
           )}
           {rows.map((row) => (
-            <div key={row.id} className="ticket-table-row grid grid-cols-[170px_1.05fr_1.05fr_.85fr_.8fr_.82fr_1.3fr_1fr_108px] items-center gap-3 px-5 py-3 transition">
+            <div key={row.id} className={`ticket-table-row grid ${REGISTER_GRID_COLS} items-center gap-3 px-5 py-3 transition`}>
               <div className="flex min-w-0 items-center gap-2">
                 <button onClick={() => onPreview(row)} className="group relative h-9 w-11 shrink-0 overflow-hidden rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
                   <img src={row.preview} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
@@ -1095,8 +1301,14 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
                   className="ticket-field" value={row.extraction[f.key]} placeholder="—"
                   onChange={(e) => onChange(row.id, f.key, e.target.value)} />
               ))}
+              <WasteCategorySelect
+                ariaLabel={`Waste category for ${row.fileName}`}
+                disabled={row.status === 'Reading'}
+                value={row.extraction.wasteCategory}
+                onChange={(category) => onCategoryChange(row.id, category)}
+              />
               <div className="flex items-center justify-end gap-0.5">
-                {row.status === 'Failed' && (
+                {row.status === 'Failed' && row.hasSourceImage && (
                   <button onClick={() => onRetry(row.id)} title="Retry" className="action-icon rounded-md p-1.5 text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/.1)]">
                     <RotateCw size={13} />
                   </button>
@@ -1118,11 +1330,9 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
 
 // ─── Ticket register page ─────────────────────────────────────────────────────
 
-function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
+function Register({ year, job, onBackToJobs, onBackToYears }: {
   year: Year;
   job: Job;
-  rows: TicketRow[];
-  setRows: (updater: (rows: TicketRow[]) => TicketRow[]) => void;
   onBackToJobs: () => void;
   onBackToYears: () => void;
 }) {
@@ -1131,6 +1341,25 @@ function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
   const [notice, setNotice] = useState<{ message: string; kind: 'success' | 'error' | 'info' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const extractMutation = useExtractTicket();
+  const createTicket = useCreateTicketRecord();
+  const updateTicket = useUpdateTicketRecord();
+  const deleteTicket = useDeleteTicketRecord();
+
+  // Ticket register rows are persisted server-side (per job) so upload
+  // history, statuses, and manual edits survive a refresh — see AUDIT.md
+  // C-2. `rows` is seeded from the server once per job and then kept in
+  // sync locally as the source of truth for rendering, with every mutation
+  // also pushed to the API.
+  const { data: savedTickets, isLoading: ticketsLoading, isError: ticketsError } = useListTickets(job.id);
+  const [rows, setRows] = useState<TicketRow[]>([]);
+  const hydratedJobIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (savedTickets && hydratedJobIdRef.current !== job.id) {
+      setRows(savedTickets.map(ticketRecordToRow));
+      hydratedJobIdRef.current = job.id;
+    }
+  }, [savedTickets, job.id]);
 
   const announce = useCallback((message: string, kind: 'success' | 'error' | 'info' = 'success') => {
     setNotice({ message, kind });
@@ -1142,19 +1371,30 @@ function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
     if (!mediaType) { announce(`${file.name} isn't supported. Use JPG, PNG, WEBP, or GIF.`, 'error'); return; }
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const preview = URL.createObjectURL(file);
-    setRows((cur) => [{ id, fileName: file.name, preview, status: 'Reading', extraction: emptyExtraction }, ...cur]);
+    setRows((cur) => [{ id, hasSourceImage: true, fileName: file.name, preview, status: 'Reading', extraction: emptyExtraction }, ...cur]);
     announce(`Reading ${file.name}…`, 'info');
+    let extraction: TicketExtraction | null = null;
+    let message = '';
     try {
       const imageData = await readFileAsBase64(file);
-      const extraction = await extractMutation.mutateAsync({ data: { fileName: file.name, mediaType, imageData } });
-      setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction, status: 'Processed' } : r));
-      announce(`${file.name} processed. Give the fields a quick look.`);
+      extraction = await extractMutation.mutateAsync({ data: { fileName: file.name, mediaType, imageData } });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Extraction did not complete.';
-      setRows((cur) => cur.map((r) => r.id === id ? { ...r, status: 'Failed', error: message } : r));
-      announce(`${file.name}: ${message}`, 'error');
+      message = err instanceof Error ? err.message : 'Extraction did not complete.';
     }
-  }, [announce, extractMutation, setRows]);
+    const status: RowStatus = extraction ? 'Processed' : 'Failed';
+    setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction: extraction ?? r.extraction, status, error: extraction ? undefined : message } : r));
+    try {
+      const created = await createTicket.mutateAsync({
+        jobId: job.id,
+        data: { fileName: file.name, status, error: extraction ? null : message, ...(extraction ?? emptyExtraction) },
+      });
+      setRows((cur) => cur.map((r) => r.id === id ? { ...r, serverId: created.id } : r));
+    } catch {
+      announce(`${file.name} processed but could not be saved. Refreshing will lose this row.`, 'error');
+    }
+    if (extraction) announce(`${file.name} processed. Give the fields a quick look.`);
+    else announce(`${file.name}: ${message}`, 'error');
+  }, [announce, createTicket, extractMutation, job.id]);
 
   const handleFiles = useCallback((files: FileList | File[]) => {
     Array.from(files).forEach((f) => void processFile(f));
@@ -1166,55 +1406,111 @@ function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
     setRows((cur) => cur.map((r) => r.id === id ? { ...r, status: 'Reading', error: undefined } : r));
     announce(`Retrying ${row.fileName}…`, 'info');
     void (async () => {
+      let extraction: TicketExtraction | null = null;
+      let message = '';
       try {
         const response = await fetch(row.preview);
         if (!response.ok) throw new Error('Source image is no longer available.');
         const blob = await response.blob();
         const imageData = await readFileAsBase64(blob);
         const mediaType = getSupportedMediaType(new File([blob], row.fileName, { type: blob.type })) ?? 'image/jpeg';
-        const extraction = await extractMutation.mutateAsync({ data: { fileName: row.fileName, mediaType, imageData } });
-        setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction, status: 'Processed', error: undefined } : r));
-        announce(`${row.fileName} processed on retry.`);
+        extraction = await extractMutation.mutateAsync({ data: { fileName: row.fileName, mediaType, imageData } });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Extraction did not complete.';
-        setRows((cur) => cur.map((r) => r.id === id ? { ...r, status: 'Failed', error: message } : r));
-        announce(`Retry failed for ${row.fileName}: ${message}`, 'error');
+        message = err instanceof Error ? err.message : 'Extraction did not complete.';
       }
+      const status: RowStatus = extraction ? 'Processed' : 'Failed';
+      setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction: extraction ?? r.extraction, status, error: extraction ? undefined : message } : r));
+      if (row.serverId) {
+        void updateTicket.mutateAsync({
+          jobId: job.id,
+          ticketId: row.serverId,
+          data: { status, error: extraction ? null : message, ...(extraction ?? {}) },
+        }).catch(() => announce('Could not save the retry result. Try again.', 'error'));
+      }
+      if (extraction) announce(`${row.fileName} processed on retry.`);
+      else announce(`Retry failed for ${row.fileName}: ${message}`, 'error');
     })();
-  }, [announce, extractMutation, rows, setRows]);
+  }, [announce, extractMutation, job.id, rows, updateTicket]);
 
   const updateField = useCallback((id: string, field: FieldKey, value: string) => {
     setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction: { ...r.extraction, [field]: value } } : r));
-  }, [setRows]);
+    const row = rows.find((r) => r.id === id);
+    if (row?.serverId) {
+      void updateTicket.mutateAsync({ jobId: job.id, ticketId: row.serverId, data: { [field]: value } })
+        .catch(() => announce('Could not save the change. Try again.', 'error'));
+    }
+  }, [announce, job.id, rows, updateTicket]);
+
+  const updateCategory = useCallback((id: string, category: WasteCategory) => {
+    setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction: { ...r.extraction, wasteCategory: category } } : r));
+    const row = rows.find((r) => r.id === id);
+    if (row?.serverId) {
+      void updateTicket.mutateAsync({ jobId: job.id, ticketId: row.serverId, data: { wasteCategory: category } })
+        .catch(() => announce('Could not save the category. Try again.', 'error'));
+    }
+  }, [announce, job.id, rows, updateTicket]);
 
   const deleteRow = useCallback((id: string) => {
     const row = rows.find((r) => r.id === id);
     setRows((cur) => cur.filter((r) => r.id !== id));
-    if (row) announce(`${row.fileName} removed.`, 'info');
-  }, [announce, rows, setRows]);
+    if (row) {
+      announce(`${row.fileName} removed.`, 'info');
+      if (row.serverId) {
+        void deleteTicket.mutateAsync({ jobId: job.id, ticketId: row.serverId })
+          .catch(() => announce('Could not delete on the server. Try refreshing.', 'error'));
+      }
+    }
+  }, [announce, deleteTicket, job.id, rows]);
 
   const addManualRow = useCallback(() => {
     const id = `manual-${Date.now()}`;
-    setRows((cur) => [{ id, fileName: 'Manual entry', preview: samplePreview(), status: 'Manual', extraction: emptyExtraction }, ...cur]);
+    setRows((cur) => [{ id, hasSourceImage: false, fileName: 'Manual entry', preview: samplePreview('MANUAL ENTRY'), status: 'Manual', extraction: emptyExtraction }, ...cur]);
     announce('Blank manual row added.');
-  }, [announce, setRows]);
+    createTicket.mutateAsync({ jobId: job.id, data: { fileName: 'Manual entry', status: 'Manual', ...emptyExtraction } })
+      .then((created) => setRows((cur) => cur.map((r) => r.id === id ? { ...r, serverId: created.id } : r)))
+      .catch(() => announce('Could not save the manual row. Refreshing will lose it.', 'error'));
+  }, [announce, createTicket, job.id]);
 
   const newBatch = useCallback(() => {
-    if (rows.length && !window.confirm('Start a new batch? This will clear the current register.')) return;
+    if (!rows.length) return;
+    if (!window.confirm(`Start a new batch? This will permanently delete all ${rows.length} row(s) in this job's register.`)) return;
+    const toDelete = rows.filter((r) => r.serverId);
     setRows(() => []);
     announce('New batch started.', 'info');
-  }, [announce, rows.length, setRows]);
+    void Promise.all(
+      toDelete.map((r) => deleteTicket.mutateAsync({ jobId: job.id, ticketId: r.serverId! }).catch(() => {})),
+    );
+  }, [announce, deleteTicket, job.id, rows]);
 
+  // C&D landfill and inert/concrete recycling are tracked completely
+  // separately for cost/billing purposes — each category's amount is
+  // computed independently here and must never be added together into one
+  // blended total anywhere in the UI.
   const totals = useMemo(() => {
     const withWeight = rows.filter((r) => r.extraction.weight.trim()).length;
-    const amount = rows.reduce((s, r) => s + (Number(r.extraction.amount.replace(/[$,\s]/g, '')) || 0), 0);
-    return { count: rows.length, withWeight, amount: amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) };
+    const amountForCategory = (category: WasteCategory) =>
+      rows
+        .filter((r) => r.extraction.wasteCategory === category)
+        .reduce((s, r) => s + (Number(r.extraction.amount.replace(/[$,\s]/g, '')) || 0), 0)
+        .toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+    return {
+      count: rows.length,
+      withWeight,
+      cdAmount: amountForCategory('C&D'),
+      inertAmount: amountForCategory('Inert'),
+    };
   }, [rows]);
 
   const exportCsv = useCallback(() => {
-    const header = ['Document type', 'Vendor', 'Ticket number', 'Invoice number', 'Purchase Order', 'Job Number', 'Date', 'Weight', 'Amount', 'Description', 'Waste Type', 'Source file', 'Status'];
+    const header = ['Document type', 'Vendor', 'Ticket number', 'Invoice number', 'Purchase Order', 'Job Number', 'Date', 'Weight', 'Amount', 'Description', 'Waste Category', 'Source file', 'Status'];
     const v = (s: string) => `"${s.replaceAll('"', '""')}"`;
-    const body = rows.map((r) => [r.extraction.documentType, ...fields.map((f) => r.extraction[f.key]), r.fileName, r.status].map(v).join(','));
+    const body = rows.map((r) => [
+      r.extraction.documentType,
+      ...fields.map((f) => r.extraction[f.key]),
+      r.extraction.wasteCategory ? WASTE_CATEGORY_LABELS[r.extraction.wasteCategory] : 'Needs review',
+      r.fileName,
+      r.status,
+    ].map(v).join(','));
     const blob = new Blob([[header.map(v).join(','), ...body].join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1258,11 +1554,13 @@ function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
             </div>
           </div>
 
-          {/* Stat cards */}
-          <div className="mb-5 grid grid-cols-3 gap-3">
+          {/* Stat cards — C&D and Inert amounts are always shown as separate
+              totals, never merged into one blended "waste" figure. */}
+          <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatCard label="Tickets" value={String(totals.count).padStart(2, '0')} detail="in this batch" tone="ink" />
             <StatCard label="With Weight" value={String(totals.withWeight).padStart(2, '0')} detail={totals.count ? `${Math.round(totals.withWeight / totals.count * 100)}% of register` : 'awaiting upload'} tone="slate" />
-            <StatCard label="Total Amount" value={totals.amount} detail="ready for export" tone="red" />
+            <StatCard label="C&D Landfill" value={totals.cdAmount} detail="amount, this batch" tone="red" />
+            <StatCard label="Inert / Recycling" value={totals.inertAmount} detail="amount, this batch" tone="slate" />
           </div>
 
           {/* Main content grid */}
@@ -1321,7 +1619,17 @@ function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
 
             {/* Right: register table + actions */}
             <div className="min-w-0">
-              <TicketRegister rows={rows} onChange={updateField} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
+              {ticketsLoading && !rows.length && (
+                <div className="mb-3 flex items-center gap-2 text-[12px] text-[hsl(var(--muted-foreground))]">
+                  <LoaderCircle size={14} className="animate-spin" /> Loading saved register…
+                </div>
+              )}
+              {ticketsError && (
+                <div className="mb-3 flex items-center gap-2 text-[12px] text-[hsl(var(--destructive))]">
+                  <AlertTriangle size={14} /> Could not load the saved register. Showing this session's data only.
+                </div>
+              )}
+              <TicketRegister rows={rows} onChange={updateField} onCategoryChange={updateCategory} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
               <div className="mt-3.5 flex items-center justify-between gap-3">
                 <button
                   onClick={addManualRow}
@@ -1368,11 +1676,6 @@ type NavState =
 
 function App() {
   const [nav, setNav] = useState<NavState>({ screen: 'home' });
-  const [rowsByJobId, setRowsByJobId] = useState<Record<number, TicketRow[]>>({});
-
-  const setJobRows = useCallback((jobId: number, updater: (rows: TicketRow[]) => TicketRow[]) => {
-    setRowsByJobId((prev) => ({ ...prev, [jobId]: updater(prev[jobId] ?? []) }));
-  }, []);
 
   if (nav.screen === 'home') {
     return (
@@ -1386,8 +1689,6 @@ function App() {
     <Register
       year={nav.year}
       job={nav.job}
-      rows={rowsByJobId[nav.job.id] ?? []}
-      setRows={(updater) => setJobRows(nav.job.id, updater)}
       onBackToJobs={() => setNav({ screen: 'home' })}
       onBackToYears={() => setNav({ screen: 'home' })}
     />
@@ -1402,7 +1703,12 @@ export default function Root() {
       <TooltipProvider>
         <WouterRouter>
           <Switch>
-            <Route path="/" component={App} />
+            <Route path="/login" component={LoginPage} />
+            <Route path="/">
+              <AuthGate>
+                <App />
+              </AuthGate>
+            </Route>
             <Route component={NotFound} />
           </Switch>
         </WouterRouter>
