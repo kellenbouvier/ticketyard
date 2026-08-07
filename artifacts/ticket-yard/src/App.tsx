@@ -134,10 +134,10 @@ const samplePreview = () =>
 
 // ─── Shared header ────────────────────────────────────────────────────────────
 
-function ApiStatus() {
+function ApiStatus({ theme = 'dark' }: { theme?: 'dark' | 'light' }) {
   const { isLoading, isError } = useHealthCheck();
   return (
-    <div className="hidden items-center gap-2 text-[11px] text-white/50 sm:flex">
+    <div className={`hidden items-center gap-2 text-[11px] sm:flex ${theme === 'dark' ? 'text-white/50' : 'text-[hsl(var(--muted-foreground))]'}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${isLoading ? 'bg-yellow-400' : isError ? 'bg-red-400' : 'bg-emerald-400'}`} />
       {isLoading ? 'Checking…' : isError ? 'Service unavailable' : 'Local OCR ready'}
     </div>
@@ -516,62 +516,116 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
   };
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[hsl(var(--background))]">
-      <AppHeader />
+    <div className="flex min-h-[100dvh]">
 
-      {/* Page body */}
-      <div className="flex flex-1 flex-col">
-        {/* Page header band */}
-        <div className="border-b border-[hsl(var(--border))] bg-white px-6 py-5 md:px-10">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[.12em] text-[hsl(var(--primary))]">
-                D.H. Griffin Companies
-              </p>
-              <h1 className="text-[1.6rem] font-bold tracking-tight text-[hsl(var(--foreground))]">
-                Job Register
-              </h1>
-              <p className="mt-1 text-[13px] text-[hsl(var(--muted-foreground))]">
-                Select a job to open the ticket register.
-              </p>
+      {/* ── Left sidebar ────────────────────────────────────────── */}
+      <aside className="hidden md:flex w-[220px] shrink-0 flex-col bg-[hsl(var(--sidebar))]">
+        {/* Logo + app name */}
+        <div className="flex h-[54px] shrink-0 items-center gap-3 border-b border-white/[.07] px-5">
+          <img src="/dhg-logo.png" alt="D.H. Griffin Companies" className="h-7 w-auto" />
+          <div className="h-4 w-px bg-white/20" />
+          <span className="text-[13px] font-semibold tracking-wide text-white/90">TicketYard</span>
+        </div>
+
+        <div className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
+          {/* Section label */}
+          <div className="mb-2.5 px-2 text-[9px] font-bold uppercase tracking-[.14em] text-white/30">Fiscal Years</div>
+
+          {yearsLoading && (
+            <div className="flex justify-center py-6">
+              <LoaderCircle size={16} className="animate-spin text-white/30" />
             </div>
-            {/* Year management */}
-            <div className="flex shrink-0 items-center gap-1 pt-1">
-              {yearsLoading && <LoaderCircle size={16} className="animate-spin text-[hsl(var(--muted-foreground))]" />}
-              {!yearsLoading && sortedYears.map((year) => (
-                <div key={year.id} className="group relative flex items-center">
-                  <button
-                    onClick={() => setSelectedYear(year)}
-                    className={`rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition ${
-                      selectedYear?.id === year.id
-                        ? 'bg-[hsl(var(--primary))] text-white shadow-sm'
-                        : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--secondary))] hover:text-[hsl(var(--foreground))]'
-                    }`}
-                  >
-                    {year.year}
-                  </button>
-                  <button
-                    onClick={() => void handleDeleteYear(year)}
-                    title={`Remove ${year.year}`}
-                    className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 items-center justify-center rounded-full bg-[hsl(var(--destructive))] text-white shadow group-hover:flex"
-                  >
-                    <X size={9} strokeWidth={2.5} />
-                  </button>
-                </div>
-              ))}
-              <button
-                onClick={() => setYearModal({ open: true, value: String(new Date().getFullYear()), error: '' })}
-                title="Add year"
-                className="ml-1 flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] transition hover:border-[hsl(var(--primary)/.5)] hover:bg-[hsl(var(--primary)/.06)] hover:text-[hsl(var(--primary))]"
-              >
-                <Plus size={14} />
-              </button>
+          )}
+          {yearsError && (
+            <p className="px-2 py-3 text-[11px] text-red-400">Could not load years.</p>
+          )}
+
+          {/* Year cards */}
+          <div className="space-y-1">
+            {sortedYears.map((year) => (
+              <div key={year.id} className="group relative">
+                <button
+                  onClick={() => setSelectedYear(year)}
+                  className={`w-full flex items-center justify-between rounded-md px-3 py-2.5 text-left transition ${
+                    selectedYear?.id === year.id
+                      ? 'border border-[hsl(var(--primary)/.45)] bg-[hsl(var(--primary)/.2)] text-white'
+                      : 'border border-transparent text-white/55 hover:bg-[hsl(var(--sidebar-accent))] hover:text-white/85'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${selectedYear?.id === year.id ? 'bg-[hsl(var(--sidebar-primary))]' : 'bg-white/20'}`} />
+                    <span className="text-[13px] font-semibold">{year.year}</span>
+                  </div>
+                  {selectedYear?.id === year.id && <ChevronRight size={12} className="text-[hsl(var(--sidebar-primary))]" />}
+                </button>
+                {/* Delete year — appears on row hover */}
+                <button
+                  onClick={() => void handleDeleteYear(year)}
+                  title={`Remove ${year.year}`}
+                  className="absolute right-2 top-1/2 hidden h-5 w-5 -translate-y-1/2 items-center justify-center rounded bg-[hsl(var(--sidebar-accent))] text-white/40 transition hover:bg-[hsl(var(--destructive)/.4)] hover:text-white/90 group-hover:flex"
+                >
+                  <X size={9} strokeWidth={2.5} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Add Year — prominent dashed card */}
+          <button
+            onClick={() => setYearModal({ open: true, value: String(new Date().getFullYear()), error: '' })}
+            className="mt-2 flex w-full items-center gap-2 rounded-md border border-dashed border-white/[.15] px-3 py-2.5 text-[12px] font-medium text-white/40 transition hover:border-[hsl(var(--primary)/.55)] hover:bg-[hsl(var(--primary)/.12)] hover:text-white/80"
+          >
+            <Plus size={13} /> Add Year
+          </button>
+
+          {/* OCR status card — pinned to bottom */}
+          <div className="mt-auto pt-6">
+            <div className="rounded-md border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-accent)/.6)] p-3">
+              <div className="flex items-center gap-2 text-[11px] font-semibold text-white/75">
+                <ShieldCheck size={13} className="text-[hsl(var(--sidebar-primary))]" /> Local OCR
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-[hsl(var(--sidebar-primary))]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--sidebar-primary))]" /> Ready
+              </div>
             </div>
           </div>
         </div>
+      </aside>
 
-        {/* Main content */}
-        <main className="flex-1 px-6 py-6 md:px-10 animate-rise">
+      {/* ── Main content ─────────────────────────────────────────── */}
+      <div className="flex min-w-0 flex-1 flex-col bg-[hsl(var(--background))]">
+
+        {/* Top bar */}
+        <header className="flex h-[54px] shrink-0 items-center justify-between gap-4 border-b border-[hsl(var(--border))] bg-white px-6 md:px-8">
+          {/* Mobile: show logo */}
+          <div className="flex items-center gap-2.5 md:hidden">
+            <img src="/dhg-logo.png" alt="D.H. Griffin Companies" className="h-6 w-auto" />
+            <span className="text-[13px] font-semibold">TicketYard</span>
+          </div>
+          {/* Desktop: company label */}
+          <span className="hidden text-[11px] font-semibold uppercase tracking-[.12em] text-[hsl(var(--primary))] md:block">
+            D.H. Griffin Companies
+          </span>
+          <div className="flex items-center gap-3">
+            <ApiStatus theme="light" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[11px] font-bold text-white">MR</div>
+          </div>
+        </header>
+
+        {/* Page header */}
+        <div className="border-b border-[hsl(var(--border))] bg-white px-6 py-5 md:px-8">
+          <h1 className="text-[1.35rem] font-bold tracking-tight text-[hsl(var(--foreground))]">
+            {selectedYear ? `${selectedYear.year} — Job Register` : 'Job Register'}
+          </h1>
+          <p className="mt-1 text-[12px] text-[hsl(var(--muted-foreground))]">
+            {selectedYear
+              ? 'Select a job to open the ticket register.'
+              : 'Choose a fiscal year from the sidebar to get started.'}
+          </p>
+        </div>
+
+        {/* Body */}
+        <main className="flex-1 px-6 py-6 md:px-8 animate-rise">
           {yearsError && (
             <div className="flex flex-col items-center rounded-lg border border-red-200 bg-red-50 py-12 text-center">
               <AlertTriangle size={20} className="text-[hsl(var(--destructive))]" />
@@ -583,7 +637,19 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
             <div className="flex flex-col items-center rounded-lg border border-dashed border-[hsl(var(--border))] bg-white py-20 text-center">
               <CalendarDays size={28} className="text-[hsl(var(--muted-foreground))]" />
               <p className="mt-3 text-[14px] font-semibold">No years configured</p>
-              <p className="mt-1 text-[13px] text-[hsl(var(--muted-foreground))]">Add a year using the button above to get started.</p>
+              <p className="mt-1 text-[13px] text-[hsl(var(--muted-foreground))]">
+                Use "Add Year" in the sidebar to create your first fiscal year.
+              </p>
+            </div>
+          )}
+
+          {!selectedYear && !yearsLoading && years.length > 0 && (
+            <div className="flex flex-col items-center rounded-lg border border-dashed border-[hsl(var(--border))] bg-white py-20 text-center">
+              <CalendarDays size={28} className="text-[hsl(var(--muted-foreground))]" />
+              <p className="mt-3 text-[14px] font-semibold">Select a fiscal year</p>
+              <p className="mt-1 text-[13px] text-[hsl(var(--muted-foreground))]">
+                Choose a year from the sidebar to view its jobs.
+              </p>
             </div>
           )}
 
@@ -598,8 +664,8 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
         </main>
 
         {/* Footer */}
-        <footer className="flex items-center gap-2.5 border-t border-[hsl(var(--border))] px-6 py-3.5 text-[10px] uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))] md:px-10">
-          <img src="/dhg-logo.png" alt="" className="h-4 w-auto opacity-30" />
+        <footer className="flex items-center gap-2.5 border-t border-[hsl(var(--border))] bg-white px-6 py-3.5 text-[10px] uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))] md:px-8">
+          <img src="/dhg-logo.png" alt="" className="h-4 w-auto opacity-25" />
           D.H. Griffin Companies — TicketYard Internal Operations
         </footer>
       </div>
