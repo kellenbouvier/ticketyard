@@ -76,3 +76,41 @@ All notable changes to this project during the audit/overhaul are logged here.
     vars.
   - Credentials and the session secret are never logged anywhere in this
     codebase.
+
+### Changed
+- **Waste category is now a proper two-value field, not free text.** D.H.
+  Griffin tracks disposal cost, hauling cost, billing, and profitability
+  completely separately for C&D landfill vs. inert/concrete recycling, and
+  the two must never be merged anywhere in the app.
+  - `lib/db/src/schema/tickets.ts`: `wasteType` (free text) replaced with
+    `wasteCategory`, a dedicated indexed Postgres enum column
+    (`'C&D' | 'Inert'`), nullable to represent "needs manual review"
+    (never a guessed value). Migrated via raw SQL: add the column,
+    best-effort backfill existing rows to `Inert` only where the vendor
+    confidently matches Metro Green or Vulcan Materials, drop the old
+    column.
+  - `artifacts/api-server/src/routes/tickets.ts`: `classifyWasteType()` ->
+    `classifyWasteCategory()`. **Fixed a real bug**: the Vulcan Materials
+    rule was mistyped as `/volk\s+and\s+materials/i`, a regex that could
+    never match any real vendor name, so Vulcan tickets silently fell
+    through to the default instead of being recognized. Metro Green and
+    Vulcan Materials now both classify as `Inert`; everything else
+    defaults to `C&D` (always one of the two — manually overridable in
+    the UI, never a third blank state for a freshly-created ticket).
+  - `lib/api-spec/openapi.yaml`: new `WasteCategory` enum schema;
+    `wasteType` replaced with `wasteCategory` across `TicketExtraction`,
+    `TicketRecord`, `CreateTicketRecordInput`, `UpdateTicketRecordInput`.
+    Regenerated `api-zod`/`api-client-react`.
+  - `artifacts/ticket-yard/src/App.tsx`: the free-text "Waste Type" input
+    is now a dedicated two-option category selector. The single "Total
+    Amount" stat card is now two independent cards — "C&D Landfill" and
+    "Inert / Recycling" — each computed by filtering to that category
+    first; the two are never summed. CSV export gained a "Waste Category"
+    column (human-readable label) in place of the old "Waste Type" column.
+  - New `artifacts/api-server/tests/waste-category-regression.mjs`: direct
+    unit test of the classifier covering both categories, several Vulcan
+    Materials spellings, and the empty-vendor default.
+  - Also fixed, while touching the register table: `grid-template-columns`
+    only defined 9 explicit tracks for what has actually been 12 rendered
+    cells per row for a while (fields were added over time without
+    updating it), silently wrapping each ticket row onto two grid rows.
