@@ -2,6 +2,10 @@
 
 Branch: `overhaul/audit-v1`. Date: 2026-08-07.
 
+> **Status:** this document is the point-in-time Phase 1 audit. See
+> `REPORT.md` for what was actually fixed/built in Phase 2/3 and what
+> remains deferred.
+
 ## 1. Architecture overview
 
 pnpm workspace, Node 24 / TypeScript 5.9, 9 packages:

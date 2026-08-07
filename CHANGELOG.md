@@ -30,3 +30,21 @@ All notable changes to this project during the audit/overhaul are logged here.
   never match a correctly spelled "Recycling", and removed "Customer" as a
   vendor-label synonym in the generic fallback parser (it names the payer,
   not the vendor). See AUDIT.md C-1 for the full writeup.
+- `lib/db/src/schema/jobs.ts` / `artifacts/api-server/src/routes/jobs.ts`:
+  added a unique `(yearId, jobNumber)` constraint and a 409 response on
+  create/update, matching the existing duplicate-year handling. Previously
+  nothing stopped two jobs sharing a job number inside one year.
+
+### Added
+- `lib/db/src/schema/tickets.ts`: new `tickets` table (FK to `jobs`,
+  cascade delete) persisting the ticket register — every extraction field,
+  `status`, `error`, `fileName`, `createdAt`.
+- `lib/api-spec/openapi.yaml` + regenerated `lib/api-zod` / `lib/api-client-react`:
+  `/jobs/{jobId}/tickets` CRUD contract (list/create/update/delete) and
+  `TicketRecord` schemas.
+- `artifacts/api-server/src/routes/ticketRecords.ts`: CRUD handlers backed
+  by the new table.
+- `artifacts/ticket-yard/src/App.tsx`: the `Register` screen now hydrates
+  from and persists through the ticket-records API instead of an
+  in-memory `rowsByJobId` map, so upload history, OCR results, and manual
+  edits survive a page refresh. See AUDIT.md C-2 for the full writeup.
