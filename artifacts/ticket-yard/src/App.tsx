@@ -163,7 +163,9 @@ function AppHeader({ children, trailing }: { children?: React.ReactNode; trailin
       <div className="ml-auto flex shrink-0 items-center gap-3">
         <ApiStatus />
         {trailing ?? (
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--sidebar-primary))] text-[11px] font-bold text-white">MR</div>
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--sidebar-primary)/.2)] border border-[hsl(var(--sidebar-primary)/.35)] text-[hsl(var(--sidebar-primary))]">
+            <User size={15} strokeWidth={1.75} />
+          </div>
         )}
       </div>
     </header>

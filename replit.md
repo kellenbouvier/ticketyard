@@ -1,6 +1,6 @@
-# TicketYard
+# DHG Register
 
-TicketYard turns construction-industry ticket photos into reviewable, export-ready records.
+DHG Register turns construction-industry ticket photos into reviewable, export-ready records using local OCR.
 
 ## Run & Operate
 
@@ -22,20 +22,20 @@ TicketYard turns construction-industry ticket photos into reviewable, export-rea
 
 ## Where things live
 
-- `artifacts/ticket-yard` — the responsive TicketYard web workspace.
+- `artifacts/ticket-yard` — the responsive DHG Register web workspace.
 - `artifacts/api-server/src/routes/tickets.ts` — server-side Tesseract OCR and ticket field parser.
 - `lib/api-spec/openapi.yaml` — source of truth for the ticket extraction contract.
-- `artifacts/ticket-yard/src/index.css` — TicketYard visual theme and responsive layout.
+- `artifacts/ticket-yard/src/index.css` — DHG Register visual theme and responsive layout.
 
 ## Architecture decisions
 
 - Ticket images are converted to base64 in the browser and sent to the API; the server runs local Tesseract OCR and does not require a paid AI provider.
 - Extraction returns only six string fields and blanks unreadable values instead of guessing.
-- The first demo keeps the register local to the browser so review, correction, retry, and CSV export stay immediate.
+- The register is local to the browser so review, correction, retry, and CSV export stay immediate.
 
 ## Product
 
-Users can upload or drag in multiple ticket images, review AI-extracted vendor, ticket number, date, weight, amount, and description fields, correct values manually, retry failed reads, add manual rows, preview source images, see live totals, and export the register to CSV.
+Users can upload or drag in multiple ticket images, review OCR-extracted vendor, ticket number, date, weight, amount, and description fields, correct values manually, retry failed reads, add manual rows, preview source images, see live totals, and export the register to CSV.
 
 ## User preferences
 

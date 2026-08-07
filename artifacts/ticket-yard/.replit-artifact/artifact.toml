@@ -1,28 +1,29 @@
 kind = "web"
-previewPath = "/"
-title = "TicketYard"
-description = "An AI-powered ticket scanning workspace for construction, demolition, trucking, landfill, and scrap recycling teams. Upload ticket photos, extract key details, review and correct results, and export clean CSV records."
-version = "1.0.0"
-id = "artifacts/ticket-yard"
-router = "path"
+    previewPath = "/"
+    title = "DHG Register"
+    description = "OCR-powered ticket and invoice management for D.H. Griffin Companies. Upload ticket photos, extract key details, review and correct results, and export clean CSV records."
+    version = "1.0.0"
+    id = "artifacts/ticket-yard"
+    router = "path"
 
-[[services]]
-name = "web"
-paths = [ "/" ]
-localPort = 24101
+    [[services]]
+    name = "web"
+    paths = [ "/" ]
+    localPort = 24101
 
-[services.development]
-run = "pnpm --filter @workspace/ticket-yard run dev"
+    [services.development]
+    run = "pnpm --filter @workspace/ticket-yard run dev"
 
-[services.production]
-build = [ "pnpm", "--filter", "@workspace/ticket-yard", "run", "build" ]
-serve = "static"
-publicDir = "artifacts/ticket-yard/dist/public"
+    [services.production]
+    build = [ "pnpm", "--filter", "@workspace/ticket-yard", "run", "build" ]
+    serve = "static"
+    publicDir = "artifacts/ticket-yard/dist/public"
 
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+    [[services.production.rewrites]]
+    from = "/*"
+    to = "/index.html"
 
-[services.env]
-PORT = "24101"
-BASE_PATH = "/"
+    [services.env]
+    PORT = "24101"
+    BASE_PATH = "/"
+    
