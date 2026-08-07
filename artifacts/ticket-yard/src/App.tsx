@@ -155,7 +155,7 @@ function AppHeader({ children, trailing }: { children?: React.ReactNode; trailin
       <div className="flex items-center gap-3 shrink-0">
         <img src="/dhg-logo.png" alt="D.H. Griffin Companies" className="h-7 w-auto" />
         <div className="h-4 w-px bg-white/20" />
-        <span className="text-[13px] font-semibold tracking-wide text-white/90">TicketYard</span>
+        <span className="text-[13px] font-semibold tracking-wide text-white/90">DHG Register</span>
       </div>
       {/* Middle slot (breadcrumbs etc.) */}
       {children && <div className="flex min-w-0 flex-1 items-center gap-2 pl-2">{children}</div>}
@@ -842,10 +842,10 @@ function HomeScreen({ onSelect }: { onSelect: (year: Year, job: Job) => void }) 
         <div className="px-8 pt-4 pb-6 shrink-0">
           <h1 className="text-[1.85rem] font-bold tracking-tight text-[hsl(var(--foreground))]">
             Welcome to{' '}
-            <span className="text-[hsl(var(--primary))]">TicketYard</span>
+            <span className="text-[hsl(var(--primary))]">DHG Register</span>
           </h1>
           <p className="mt-1 text-[13px] text-[hsl(var(--muted-foreground))]">
-            Select a year to view your jobs
+            OCR-Powered Ticket &amp; Invoice Management
           </p>
         </div>
 
@@ -978,7 +978,7 @@ function Sidebar({ year, job, onNewBatch, onBackToJobs, onBackToYears }: {
       <div className="flex h-[54px] shrink-0 items-center gap-3 border-b border-white/[.07] px-5">
         <img src="/dhg-logo.png" alt="D.H. Griffin Companies" className="h-7 w-auto" />
         <div className="h-4 w-px bg-white/20" />
-        <span className="text-[13px] font-semibold tracking-wide text-white/90">TicketYard</span>
+        <span className="text-[13px] font-semibold tracking-wide text-white/90">DHG Register</span>
       </div>
 
       <div className="flex flex-1 flex-col px-3 py-4">
@@ -1070,7 +1070,7 @@ function TicketRegister({ rows, onChange, onDelete, onRetry, onPreview }: {
                 <Inbox size={22} />
               </div>
               <h3 className="mt-3 text-[14px] font-semibold">Register is empty</h3>
-              <p className="mt-1 max-w-xs text-[12px] text-[hsl(var(--muted-foreground))]">Upload ticket photos to the left and TicketYard will populate the rows.</p>
+              <p className="mt-1 max-w-xs text-[12px] text-[hsl(var(--muted-foreground))]">Upload ticket photos to the left and DHG Register will populate the rows.</p>
             </div>
           )}
           {rows.map((row) => (
@@ -1216,7 +1216,7 @@ function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
     const blob = new Blob([[header.map(v).join(','), ...body].join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `ticketyard-${job.jobNumber}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.href = url; a.download = `dhg-register-${job.jobNumber}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click(); URL.revokeObjectURL(url);
     announce(`${rows.length} rows exported.`);
   }, [announce, job.jobNumber, rows]);
@@ -1342,7 +1342,7 @@ function Register({ year, job, rows, setRows, onBackToJobs, onBackToYears }: {
           {/* Footer */}
           <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-[hsl(var(--border))] pt-4 text-[10px] uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">
             <div className="flex items-center gap-2">
-              <HardHat size={12} /> D.H. Griffin Companies — TicketYard
+              <HardHat size={12} /> D.H. Griffin Companies — DHG Register
             </div>
             <div className="flex items-center gap-4">
               <span>v1.0</span>
