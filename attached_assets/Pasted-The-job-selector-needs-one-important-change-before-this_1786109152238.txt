@@ -1,0 +1,104 @@
+The job selector needs one important change before this is considered complete.
+
+Do NOT keep jobs as a hardcoded static array in App.tsx. This application is intended to be used continuously for many years, so jobs and years must be manageable by the user without editing code.
+
+I want the job-selection workflow to be:
+
+TicketYard home page
+↓
+Select a year (2026, 2027, 2028, etc.)
+↓
+See the jobs associated with that year
+↓
+Select a job
+↓
+Open that job’s Ticket Register
+
+REQUIREMENTS
+
+1. YEAR MANAGEMENT
+
+The home page should first show job years.
+
+Examples:
+2026 Jobs
+2027 Jobs
+2028 Jobs
+
+There must always be an “Add Year” option.
+
+The user should be able to add a new year at any time, including future years such as 2035, without changing code.
+
+Years should remain saved after refreshing or reopening the app.
+
+2. JOB MANAGEMENT
+
+After selecting a year, show the jobs for that year.
+
+Each job should display ONLY:
+- Job Number, format ##-##-####
+- Job Name
+
+Do not show:
+- the two-letter initials/codes
+- addresses
+- location column
+
+There must always be an “Add Job” option inside each year.
+
+When adding a job, ask for:
+- Job Number
+- Job Name
+
+The user should not need to edit App.tsx or any source file to add jobs.
+
+3. PERSISTENCE
+
+Years and jobs need to persist.
+
+Do not store this only in temporary React state.
+
+Use the simplest appropriate persistent storage already available in this app architecture. If local browser storage is used, explain its limitations before implementing it. If server-side persistence is reasonably simple, prefer that because this is intended as an ongoing internal application.
+
+4. JOB RECORD ASSOCIATION
+
+Every ticket or invoice row must remain associated with the selected job.
+
+The hierarchy should effectively be:
+
+Year
+  → Job
+      → Ticket / Invoice records
+
+Switching between years or jobs must never mix records.
+
+5. CONTROLS
+
+Provide obvious controls for:
+- Add Year
+- Add Job
+- Edit Job
+- Return to Years
+- Return to Jobs
+- Open Ticket Register
+
+Also include a simple way to remove or archive a job, but require confirmation so it cannot be deleted accidentally.
+
+6. EXISTING FUNCTIONALITY
+
+Do not change:
+- OCR pipeline
+- existing parser rules
+- invoice support
+- manual editing
+- CSV export
+- waste classification
+
+Run the existing Metro Green ticket, Willow Oak ticket, and Metro Green invoice regressions afterward to make sure nothing broke.
+
+Do not republish automatically.
+
+Before implementing, tell me:
+1. whether you recommend localStorage or server-side persistence for years/jobs,
+2. what files you expect to change,
+3. whether this introduces any risk to the existing OCR/parser functionality.
