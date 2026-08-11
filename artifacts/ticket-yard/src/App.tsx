@@ -60,6 +60,7 @@ import {
   Trash2,
   UploadCloud,
   User,
+  Wallet,
   X,
   ZoomIn,
 } from 'lucide-react';
@@ -70,6 +71,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { parseTonnage, formatTons } from '@/lib/tonnage';
 import { computeCostCodeTotals } from '@/lib/costCodeTotals';
+import { BudgetBuilder } from '@/components/BudgetBuilder';
 
 const queryClient = new QueryClient();
 
@@ -734,6 +736,9 @@ function RecentActivityPanel({ year, onOpen, announce }: {
   const updateJob = useUpdateJob();
   const deleteJob = useDeleteJob();
   const [modal, setModal] = useState<JobModal>({ open: false });
+  // After a job is created, immediately open its budget builder — building a
+  // budget is part of the create-a-job flow (one unified interface).
+  const [budgetJob, setBudgetJob] = useState<Job | null>(null);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: getListJobsQueryKey(year.id) });
 
@@ -745,8 +750,12 @@ function RecentActivityPanel({ year, onOpen, announce }: {
     if (!name) { setModal({ ...modal, error: 'Job Name is required.' }); return; }
     try {
       if (modal.mode === 'add') {
-        await createJob.mutateAsync({ yearId: year.id, data: { jobNumber: num, jobName: name } });
+        const created = await createJob.mutateAsync({ yearId: year.id, data: { jobNumber: num, jobName: name } });
         announce(`Job ${num} added.`);
+        await invalidate();
+        setModal({ open: false });
+        setBudgetJob(created as unknown as Job);
+        return;
       } else {
         await updateJob.mutateAsync({ yearId: year.id, jobId: modal.job.id, data: { jobNumber: num, jobName: name } });
         announce(`Job ${num} updated.`);
@@ -845,6 +854,13 @@ function RecentActivityPanel({ year, onOpen, announce }: {
                 <Trash2 size={12} />
               </button>
               <button
+                onClick={() => setBudgetJob(job)}
+                title="Budget"
+                className="rounded p-1.5 text-[hsl(var(--muted-foreground))] opacity-0 transition hover:text-[hsl(var(--primary))] group-hover:opacity-100"
+              >
+                <Wallet size={12} />
+              </button>
+              <button
                 onClick={() => onOpen(job)}
                 className="rounded border border-[hsl(var(--primary)/.5)] px-3 py-1 text-[11px] font-semibold text-[hsl(var(--primary))] transition hover:bg-[hsl(var(--primary))] hover:text-white"
               >
@@ -894,6 +910,16 @@ function RecentActivityPanel({ year, onOpen, announce }: {
             </div>
           </div>
         </Modal>
+      )}
+
+      {budgetJob && (
+        <BudgetBuilder
+          jobId={budgetJob.id}
+          jobNumber={budgetJob.jobNumber}
+          jobName={budgetJob.jobName}
+          announce={announce}
+          onClose={() => setBudgetJob(null)}
+        />
       )}
     </>
   );
@@ -1435,6 +1461,7 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
 }) {
   const [dragging, setDragging] = useState(false);
   const [previewRow, setPreviewRow] = useState<TicketRow | null>(null);
+  const [budgetOpen, setBudgetOpen] = useState(false);
   const [notice, setNotice] = useState<{ message: string; kind: 'success' | 'error' | 'info' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const extractMutation = useExtractTicket();
@@ -1691,6 +1718,12 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
                 <h1 className="text-[1.5rem] font-bold tracking-tight text-[hsl(var(--foreground))]">{job.jobName}</h1>
                 <p className="mt-1 text-[12px] text-[hsl(var(--muted-foreground))]">Upload tickets — review extracted data — export CSV.</p>
               </div>
+              <button
+                onClick={() => setBudgetOpen(true)}
+                className="flex shrink-0 items-center gap-1.5 rounded-md border border-[hsl(var(--primary)/.5)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[hsl(var(--primary))] shadow-sm transition hover:bg-[hsl(var(--primary))] hover:text-white active:scale-95"
+              >
+                <Wallet size={14} /> Budget
+              </button>
             </div>
           </div>
 
@@ -1809,6 +1842,15 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
 
       {notice && <Notice notice={notice} />}
       {previewRow && <PreviewModal row={previewRow} onClose={() => setPreviewRow(null)} />}
+      {budgetOpen && (
+        <BudgetBuilder
+          jobId={job.id}
+          jobNumber={job.jobNumber}
+          jobName={job.jobName}
+          announce={announce}
+          onClose={() => setBudgetOpen(false)}
+        />
+      )}
     </div>
   );
 }
