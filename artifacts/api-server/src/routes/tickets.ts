@@ -30,7 +30,10 @@ type TicketFields = {
   weight: string;
   amount: string;
   description: string;
-  wasteCategory: WasteCategory;
+  // Only landfill/inert-landfill tickets get a C&D/Inert category; every
+  // other ticket stays null ("N/A"), never auto-defaulted. See
+  // classifyWasteCategory().
+  wasteCategory: WasteCategory | null;
   // The PRIMARY classification (DHG's accounting "Cat" column) — see
   // suggestCostCode() below. Unlike wasteCategory, there is no safe
   // default: null means "needs manual review" and is never guessed.
@@ -52,11 +55,11 @@ const emptyFields: TicketFields = {
   weight: "",
   amount: "",
   description: "",
-  // D.H. Griffin tracks C&D landfill and inert/concrete recycling
-  // separately and every ticket needs exactly one of the two — see
-  // classifyWasteCategory() below. Even a wholly unreadable ticket still
-  // gets the default category; it stays manually overridable in the UI.
-  wasteCategory: "C&D",
+  // No auto-default: the waste C&D/Inert category is only meaningful for
+  // landfill/inert-landfill tickets, so a fresh/unclassified ticket stays
+  // null ("N/A" in the UI) until a landfill/inert vendor rule fires or the
+  // user picks one. See classifyWasteCategory().
+  wasteCategory: null,
   costCode: null,
   diversionMaterial: null,
 };
@@ -633,21 +636,26 @@ function looksLikeDocumentHeading(line: string): boolean {
 }
 
 // D.H. Griffin tracks disposal cost, hauling cost, billing, and
-// profitability separately for C&D landfill vs. inert/concrete recycling
-// — the two must never be merged anywhere downstream. This classifier is
-// a deterministic vendor rule (never AI, never OCR-text guessing) and
-// always returns one of the two categories; there is no third "unknown"
-// value for a freshly-classified ticket, because the UI lets the user
-// manually override the default in one click, and picking a default is
-// safer than surfacing yet another unclassified state to review.
-export function classifyWasteCategory(vendor: string): WasteCategory {
+// profitability separately for C&D landfill vs. inert/concrete recycling —
+// the two must never be merged anywhere downstream. The C&D/Inert category
+// is ONLY meaningful for landfill / inert-landfill tickets, so this
+// classifier deliberately does NOT default to "C&D": it returns a category
+// only for a confidently-recognized landfill/disposal/recycling vendor and
+// null ("N/A" / needs review) otherwise. Deterministic vendor rule, never
+// AI / OCR-text guessing; always user-overridable in the UI.
+export function classifyWasteCategory(vendor: string): WasteCategory | null {
   const normalizedVendor = vendor.replace(/\s+/g, " ").trim();
+  if (!normalizedVendor) return null;
+  // Inert / concrete-recycling vendors.
   if (/metro\s+green/i.test(normalizedVendor)) return "Inert";
   // Was previously mistyped as "volk and materials" and could never
-  // match any real vendor name — Vulcan Materials tickets silently fell
-  // through to the C&D default instead of being recognized as Inert.
+  // match any real vendor name — Vulcan Materials is inert (concrete).
   if (/vulcan\s+materials/i.test(normalizedVendor)) return "Inert";
-  return "C&D";
+  // C&D landfill / general disposal vendors.
+  if (/landfill|disposal|waste\s+management|\bwm\b/i.test(normalizedVendor)) return "C&D";
+  if (/willow\s+oak/i.test(normalizedVendor)) return "C&D";
+  // Not a landfill/inert ticket — leave the category blank ("N/A").
+  return null;
 }
 
 // The functions below implement per-vendor *layout* rules (this ticket

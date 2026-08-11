@@ -28,7 +28,7 @@ import type {
   TicketRecord,
   WasteCategory,
 } from '@workspace/api-client-react';
-import { costCodesBySection, formatCostCode } from '@workspace/cost-codes';
+import { costCodesBySection, formatCostCode, isLandfillCostCode } from '@workspace/cost-codes';
 import {
   DIVERSION_MATERIALS,
   DIVERTED_MATERIALS,
@@ -141,6 +141,21 @@ const WASTE_CATEGORY_LABELS: Record<WasteCategory, string> = {
 };
 const WASTE_CATEGORY_OPTIONS: WasteCategory[] = ['C&D', 'Inert'];
 
+// The waste C&D/Inert category is only meaningful for landfill /
+// inert-landfill tickets. A ticket is treated as a landfill ticket when it
+// carries a landfill (05-xxx) cost code, already has a category set (protects
+// existing categorized rows), or its vendor is a known landfill / disposal /
+// inert-recycling vendor. Mirrors the server-side classifyWasteCategory()
+// vendor rules so the UI and API agree on which tickets need a category.
+const LANDFILL_VENDOR_RE =
+  /landfill|disposal|waste\s+management|\bwm\b|metro\s+green|vulcan\s+materials|willow\s+oak/i;
+function isLandfillTicket(ex: Pick<RowExtraction, 'costCode' | 'wasteCategory' | 'vendor'>): boolean {
+  if (isLandfillCostCode(ex.costCode)) return true;
+  if (ex.wasteCategory != null) return true;
+  const vendor = (ex.vendor ?? '').trim();
+  return vendor ? LANDFILL_VENDOR_RE.test(vendor) : false;
+}
+
 function ticketRecordToRow(record: TicketRecord): TicketRow {
   return {
     id: `saved-${record.id}`,
@@ -179,10 +194,11 @@ const emptyExtraction: RowExtraction = {
   weight: '',
   amount: '',
   description: '',
-  // New rows (manual or freshly OCR'd) always get a default category —
-  // it's always shown and always one click to override, never left as an
-  // ambiguous blank the way OCR text fields are.
-  wasteCategory: 'C&D',
+  // No auto-default: the C&D/Inert category only applies to landfill /
+  // inert-landfill tickets, so a fresh manual row starts null (shown as
+  // "N/A" for a non-landfill ticket, "Needs review" once it looks like a
+  // landfill ticket). Always user-overridable.
+  wasteCategory: null,
   // Unlike wasteCategory there is no safe default cost code — a fresh
   // manual row always starts "needs review" until a vendor rule fires (see
   // suggestCostCode() server-side) or the user picks one.
@@ -1293,21 +1309,35 @@ function Sidebar({ year, job, onNewBatch, onBackToJobs, onBackToYears }: {
 // row below.
 const REGISTER_GRID_COLS = 'grid-cols-[170px_1fr_.9fr_.9fr_.8fr_.85fr_.95fr_.75fr_.85fr_1.3fr_1.5fr_1.5fr_1.05fr_108px]';
 
-function WasteCategorySelect({ value, disabled, onChange, ariaLabel }: {
+// The C&D/Inert category is only meaningful for landfill / inert-landfill
+// tickets. For a non-landfill ticket an unset value shows a neutral "N/A"
+// (not a red "Needs review") and is never flagged as needing review; only a
+// landfill ticket shows a genuine red "Needs review" when unset. The
+// selector stays available in both cases, so any ticket's category remains
+// user-overridable.
+function WasteCategorySelect({ value, isLandfill, disabled, onChange, ariaLabel }: {
   value: WasteCategory | null;
+  isLandfill: boolean;
   disabled: boolean;
   onChange: (value: WasteCategory) => void;
   ariaLabel: string;
 }) {
+  const needsReview = isLandfill && !value;
+  const placeholder = isLandfill ? 'Needs review' : 'N/A';
+  const tone = needsReview
+    ? 'text-[hsl(var(--destructive))]'
+    : value
+      ? ''
+      : 'text-[hsl(var(--muted-foreground))]';
   return (
     <select
       aria-label={ariaLabel}
       disabled={disabled}
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value as WasteCategory)}
-      className={`ticket-field ${value ? '' : 'text-[hsl(var(--destructive))]'}`}
+      className={`ticket-field ${tone}`}
     >
-      {!value && <option value="" disabled>Needs review</option>}
+      {!value && <option value="" disabled>{placeholder}</option>}
       {WASTE_CATEGORY_OPTIONS.map((option) => (
         <option key={option} value={option}>{WASTE_CATEGORY_LABELS[option]}</option>
       ))}
@@ -1442,6 +1472,7 @@ function TicketRegister({ rows, onChange, onCategoryChange, onCostCodeChange, on
               <WasteCategorySelect
                 ariaLabel={`Waste category for ${row.fileName}`}
                 disabled={row.status === 'Reading'}
+                isLandfill={isLandfillTicket(row.extraction)}
                 value={row.extraction.wasteCategory}
                 onChange={(category) => onCategoryChange(row.id, category)}
               />
@@ -1812,7 +1843,9 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
       r.extraction.documentType,
       ...fields.map((f) => r.extraction[f.key]),
       formatCostCode(r.extraction.costCode) || 'Needs review',
-      r.extraction.wasteCategory ? WASTE_CATEGORY_LABELS[r.extraction.wasteCategory] : 'Needs review',
+      r.extraction.wasteCategory
+        ? WASTE_CATEGORY_LABELS[r.extraction.wasteCategory]
+        : (isLandfillTicket(r.extraction) ? 'Needs review' : 'N/A'),
       r.fileName,
       r.status,
     ].map(v).join(','));

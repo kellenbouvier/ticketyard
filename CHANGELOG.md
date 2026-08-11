@@ -5,6 +5,16 @@ All notable changes to this project during the audit/overhaul are logged here.
 ## Unreleased
 
 ### Added
+- Full DHG cost-code taxonomy: `@workspace/cost-codes` now loads the COMPLETE
+  DHG Standard Cost Code List (206 codes across all 15 groups, from
+  `cost_codes.json`) instead of the 14-entry seed. Each `{code, description,
+  group}` maps to the existing `{section, code, name}` shape (section = the
+  group's human name, e.g. "Trucking/Hauling", "Landfill"). The helper API is
+  unchanged (`costCodeByCode`, `isKnownCostCode`, `isLandfillCostCode`,
+  `costCodesBySection`, `formatCostCode`, `suggestCostCode`); every downstream
+  consumer (budget builder, cost-code filter/report, register selector,
+  ticket validation) now offers the full list. Tests assert key codes,
+  full group ordering, and a high total count rather than the old hardcoded 14.
 - LEED Waste & Scrap Diversion tracking, decoupled from the waste C&D/Inert
   field and the budget module. A new shared package `@workspace/diversion`
   (`lib/diversion`) is the single source of truth: the seven-material taxonomy
@@ -32,6 +42,21 @@ All notable changes to this project during the audit/overhaul are logged here.
   cost code without running a report or reloading. Pure client-side derived
   state (`src/lib/costCodeFilter.ts`), covered by
   `tests/cost-code-filter-regression.mjs`.
+
+### Changed
+- Waste category (C&D/Inert) is now optional and only meaningful for landfill
+  / inert-landfill tickets. Removed the hardcoded `wasteCategory: 'C&D'`
+  default (frontend `emptyExtraction` and the API `emptyFields`); the server
+  classifier no longer falls back to C&D and returns `null` for any
+  non-landfill vendor (assigning C&D/Inert only for landfill/disposal/inert
+  vendors). In the register the Category column shows a neutral "N/A" (not a
+  red "Needs review") for non-landfill tickets and never flags them as needing
+  review; only landfill / inert-landfill tickets (detected via a 05-xxx cost
+  code, an existing category, or a landfill/disposal/inert vendor) show the
+  C&D vs Inert selector and a genuine "Needs review" when unset. Still fully
+  user-overridable; the C&D/Inert stat cards, diversion feature, and existing
+  categorized landfill tickets are unaffected. `TicketExtraction.wasteCategory`
+  is now nullable in the OpenAPI spec (regenerated codegen).
 
 ### Fixed
 - `pnpm-workspace.yaml`: replaced an invalid, half-finished `allowBuilds` entry

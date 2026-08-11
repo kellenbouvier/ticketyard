@@ -494,7 +494,13 @@ components:
         description:
           type: string
         wasteCategory:
-          $ref: "#/components/schemas/WasteCategory"
+          oneOf:
+            - $ref: "#/components/schemas/WasteCategory"
+            - type: "null"
+          description: >-
+            Waste disposal category. Only meaningful for landfill /
+            inert-landfill tickets; null ("N/A" / needs review) for
+            everything else. Never auto-defaulted to "C&D".
         costCode:
           type: ["string", "null"]
           description: >-

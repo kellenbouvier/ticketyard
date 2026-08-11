@@ -20,7 +20,8 @@ export interface TicketExtraction {
   weight: string;
   amount: string;
   description: string;
-  wasteCategory: WasteCategory;
+  /** Waste disposal category. Only meaningful for landfill / inert-landfill tickets; null ("N/A" / needs review) for everything else. Never auto-defaulted to "C&D". */
+  wasteCategory: WasteCategory | null;
   /**
      * DHG job-cost accounting code (the "Cat" column), e.g. "05-110". The PRIMARY classification for every ticket — see @workspace/cost-codes for the taxonomy. Set only when a vendor or description rule confidently matches; null means "needs manual review," never a guess.
      * @nullable
