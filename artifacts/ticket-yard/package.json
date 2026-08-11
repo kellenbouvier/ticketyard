@@ -9,7 +9,8 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:tonnage": "tsx ./tests/tonnage-regression.mjs",
-    "test:cost-code-totals": "tsx ./tests/cost-code-totals-regression.mjs"
+    "test:cost-code-totals": "tsx ./tests/cost-code-totals-regression.mjs",
+    "test:cost-code-filter": "tsx ./tests/cost-code-filter-regression.mjs"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

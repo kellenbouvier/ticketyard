@@ -43,6 +43,7 @@ import {
   CloudUpload,
   ExternalLink,
   FileImage,
+  Filter,
   HardHat,
   Home,
   Inbox,
@@ -72,6 +73,13 @@ import NotFound from '@/pages/not-found';
 import { parseTonnage, formatTons } from '@/lib/tonnage';
 import { computeCostCodeTotals } from '@/lib/costCodeTotals';
 import { BudgetBuilder } from '@/components/BudgetBuilder';
+import {
+  COST_CODE_FILTER_ALL,
+  COST_CODE_FILTER_UNASSIGNED,
+  filterRowsByCostCode,
+  filterCostCodeTotals,
+  type CostCodeFilter,
+} from '@/lib/costCodeFilter';
 
 const queryClient = new QueryClient();
 
@@ -1410,6 +1418,38 @@ function TicketRegister({ rows, onChange, onCategoryChange, onCostCodeChange, on
 // ─── Cost code report — section subtotals, mirroring the DHG "JC Entries
 // by Job" report ───────────────────────────────────────────────────────────
 
+// In-page cost-code filter: "All" + every code grouped by section + "Needs
+// review". Selecting a value instantly narrows the register rows and the Cost
+// Code Totals panel — pure client-side, no report run, no reload.
+function CostCodeFilterSelect({ value, onChange }: {
+  value: CostCodeFilter;
+  onChange: (value: CostCodeFilter) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Filter size={13} className="text-[hsl(var(--muted-foreground))]" />
+      <label htmlFor="cost-code-filter" className="text-[11px] font-semibold uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">Filter</label>
+      <select
+        id="cost-code-filter"
+        aria-label="Filter by cost code"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-md border border-[hsl(var(--border))] bg-white px-2.5 py-1.5 text-[12px] font-medium outline-none transition focus:border-[hsl(var(--primary)/.6)]"
+      >
+        <option value={COST_CODE_FILTER_ALL}>All cost codes</option>
+        {costCodesBySection().map(({ section, codes }) => (
+          <optgroup key={section} label={section}>
+            {codes.map((c) => (
+              <option key={c.code} value={c.code}>{formatCostCode(c)}</option>
+            ))}
+          </optgroup>
+        ))}
+        <option value={COST_CODE_FILTER_UNASSIGNED}>Needs review</option>
+      </select>
+    </div>
+  );
+}
+
 function CostCodeReport({ totals }: { totals: ReturnType<typeof computeCostCodeTotals> }) {
   const currency = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   if (!totals.sections.length && !totals.unassignedCount) return null;
@@ -1646,6 +1686,17 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
     };
   }, [rows]);
 
+  // In-page cost-code filter (client-side only — no report run, no reload).
+  const [costFilter, setCostFilter] = useState<CostCodeFilter>(COST_CODE_FILTER_ALL);
+  const visibleRows = useMemo(
+    () => filterRowsByCostCode(rows.map((r) => ({ ...r, costCode: r.extraction.costCode })), costFilter),
+    [rows, costFilter],
+  );
+  const visibleCostCodeTotals = useMemo(
+    () => filterCostCodeTotals(totals.costCodes, costFilter),
+    [totals.costCodes, costFilter],
+  );
+
   const exportCsv = useCallback(() => {
     const header = ['Document type', 'Vendor', 'Ticket number', 'Invoice number', 'Purchase Order', 'Job Number', 'Date', 'Weight', 'Amount', 'Description', 'Cost Code', 'Waste Category', 'Source file', 'Status'];
     const v = (s: string) => `"${s.replaceAll('"', '""')}"`;
@@ -1806,7 +1857,13 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
                   <AlertTriangle size={14} /> Could not load the saved register. Showing this session's data only.
                 </div>
               )}
-              <TicketRegister rows={rows} onChange={updateField} onCategoryChange={updateCategory} onCostCodeChange={updateCostCode} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <CostCodeFilterSelect value={costFilter} onChange={setCostFilter} />
+                {costFilter !== COST_CODE_FILTER_ALL && (
+                  <span className="text-[11px] text-[hsl(var(--muted-foreground))]">Showing {visibleRows.length} of {rows.length} ticket{rows.length === 1 ? '' : 's'}</span>
+                )}
+              </div>
+              <TicketRegister rows={visibleRows} onChange={updateField} onCategoryChange={updateCategory} onCostCodeChange={updateCostCode} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
               <div className="mt-3.5 flex items-center justify-between gap-3">
                 <button
                   onClick={addManualRow}
@@ -1823,7 +1880,7 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
                   <span className="ml-1 border-l border-white/25 pl-2 font-mono-app text-[10px]">.csv</span>
                 </button>
               </div>
-              <CostCodeReport totals={totals.costCodes} />
+              <CostCodeReport totals={visibleCostCodeTotals} />
             </div>
           </div>
 

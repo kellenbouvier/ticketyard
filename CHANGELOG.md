@@ -4,6 +4,14 @@ All notable changes to this project during the audit/overhaul are logged here.
 
 ## Unreleased
 
+### Added
+- In-page cost-code filter on the ticket register: a grouped-by-section
+  "code — name" dropdown (plus "All" and "Needs review") that instantly
+  narrows both the register rows and the Cost Code Totals panel to a single
+  cost code without running a report or reloading. Pure client-side derived
+  state (`src/lib/costCodeFilter.ts`), covered by
+  `tests/cost-code-filter-regression.mjs`.
+
 ### Fixed
 - `pnpm-workspace.yaml`: replaced an invalid, half-finished `allowBuilds` entry
   (`esbuild: set this to true or false`) with `allowBuilds: { esbuild: true }`.
