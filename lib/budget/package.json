@@ -1,0 +1,18 @@
+{
+  "name": "@workspace/budget",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "tsx ./tests/budget-totals.test.mjs"
+  },
+  "dependencies": {
+    "@workspace/cost-codes": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "catalog:"
+  }
+}
