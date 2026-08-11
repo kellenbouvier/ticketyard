@@ -57,6 +57,14 @@ export default defineConfig({
       prettier: true,
       override: {
         zod: {
+          // This workspace pins zod@3 (see pnpm-workspace.yaml catalog). The
+          // `zod` field there is the literal string "catalog:" (pnpm's
+          // catalog protocol), which orval's 'auto' detection can't parse
+          // as a real semver — leaving it on 'auto' silently emits Zod
+          // 4-only syntax (e.g. top-level `zod.int()`) that doesn't exist
+          // in zod@3 and fails to typecheck. Pin explicitly instead of
+          // relying on version sniffing.
+          version: 3,
           coerce: {
             query: ['boolean', 'number', 'string'],
             param: ['boolean', 'number', 'string'],

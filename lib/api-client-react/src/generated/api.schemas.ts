@@ -76,6 +76,11 @@ export interface TicketExtraction {
   amount: string;
   description: string;
   wasteCategory: WasteCategory;
+  /**
+     * DHG job-cost accounting code (the "Cat" column), e.g. "05-110". The PRIMARY classification for every ticket — see @workspace/cost-codes for the taxonomy. Set only when a vendor or description rule confidently matches; null means "needs manual review," never a guess.
+     * @nullable
+     */
+  costCode: string | null;
 }
 
 export interface Year {
@@ -139,6 +144,11 @@ export interface TicketRecord {
   amount: string;
   description: string;
   wasteCategory: WasteCategory | null;
+  /**
+     * DHG job-cost accounting code (the "Cat" column), e.g. "05-110". The PRIMARY classification for every ticket — see @workspace/cost-codes for the taxonomy. Null means "needs manual review," never a guess.
+     * @nullable
+     */
+  costCode: string | null;
   createdAt: string;
 }
 
@@ -158,6 +168,11 @@ export interface CreateTicketRecordInput {
   amount?: string;
   description?: string;
   wasteCategory?: WasteCategory | null;
+  /**
+     * DHG job-cost accounting code (the "Cat" column), e.g. "05-110". See @workspace/cost-codes for the taxonomy. Omitted/null means "needs manual review," never a guess.
+     * @nullable
+     */
+  costCode?: string | null;
 }
 
 export interface UpdateTicketRecordInput {
@@ -176,5 +191,10 @@ export interface UpdateTicketRecordInput {
   amount?: string;
   description?: string;
   wasteCategory?: WasteCategory | null;
+  /**
+     * DHG job-cost accounting code (the "Cat" column), e.g. "05-110". See @workspace/cost-codes for the taxonomy. Omitted/null means "needs manual review," never a guess.
+     * @nullable
+     */
+  costCode?: string | null;
 }
 

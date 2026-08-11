@@ -6,6 +6,7 @@ import {
   CreateTicketRecordBody,
   UpdateTicketRecordBody,
 } from "@workspace/api-zod";
+import { isKnownCostCode } from "@workspace/cost-codes";
 
 const router = Router();
 
@@ -45,6 +46,14 @@ router.post("/jobs/:jobId/tickets", async (req, res) => {
     return;
   }
   const data = parsed.data;
+  // costCode is validated against the shared taxonomy (@workspace/cost-codes)
+  // here at the API boundary rather than a DB constraint, so DHG can add new
+  // codes to that one module without a migration. null always passes
+  // ("needs review") — only a non-null, unrecognized string is rejected.
+  if (!isKnownCostCode(data.costCode ?? null)) {
+    res.status(400).json({ error: "Unknown cost code." });
+    return;
+  }
   const [created] = await db
     .insert(ticketsTable)
     .values({
@@ -63,6 +72,7 @@ router.post("/jobs/:jobId/tickets", async (req, res) => {
       amount: data.amount ?? "",
       description: data.description ?? "",
       wasteCategory: data.wasteCategory ?? null,
+      costCode: data.costCode ?? null,
     })
     .returning();
   res.status(201).json(created);
@@ -78,6 +88,10 @@ router.patch("/jobs/:jobId/tickets/:ticketId", async (req, res) => {
     return;
   }
   const data = parsed.data;
+  if (data.costCode !== undefined && !isKnownCostCode(data.costCode)) {
+    res.status(400).json({ error: "Unknown cost code." });
+    return;
+  }
   const [updated] = await db
     .update(ticketsTable)
     .set({
@@ -95,6 +109,7 @@ router.patch("/jobs/:jobId/tickets/:ticketId", async (req, res) => {
       ...(data.amount !== undefined && { amount: data.amount }),
       ...(data.description !== undefined && { description: data.description }),
       ...(data.wasteCategory !== undefined && { wasteCategory: data.wasteCategory }),
+      ...(data.costCode !== undefined && { costCode: data.costCode }),
     })
     .where(and(eq(ticketsTable.id, ticketId), eq(ticketsTable.jobId, jobId)))
     .returning();
