@@ -1,0 +1,15 @@
+{
+  "name": "@workspace/diversion",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "tsx ./tests/diversion.test.mjs"
+  },
+  "devDependencies": {
+    "tsx": "catalog:"
+  }
+}

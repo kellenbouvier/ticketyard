@@ -17,6 +17,9 @@
     },
     {
       "path": "../../lib/cost-codes"
+    },
+    {
+      "path": "../../lib/diversion"
     }
   ]
 }
