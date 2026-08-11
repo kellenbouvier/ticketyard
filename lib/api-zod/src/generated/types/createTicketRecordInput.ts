@@ -29,4 +29,9 @@ export interface CreateTicketRecordInput {
      * @nullable
      */
   costCode?: string | null;
+  /**
+     * LEED Waste & Scrap Diversion material (see @workspace/diversion for the taxonomy). Omitted/null means "needs review," never a guess.
+     * @nullable
+     */
+  diversionMaterial?: string | null;
 }

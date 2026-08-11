@@ -7,6 +7,7 @@ import {
   UpdateTicketRecordBody,
 } from "@workspace/api-zod";
 import { isKnownCostCode } from "@workspace/cost-codes";
+import { isKnownDiversionMaterial } from "@workspace/diversion";
 
 const router = Router();
 
@@ -54,6 +55,13 @@ router.post("/jobs/:jobId/tickets", async (req, res) => {
     res.status(400).json({ error: "Unknown cost code." });
     return;
   }
+  // Diversion material is validated against the shared LEED taxonomy
+  // (@workspace/diversion) at the API boundary, mirroring costCode. null
+  // always passes ("needs review"); only a non-null unknown value is rejected.
+  if (!isKnownDiversionMaterial(data.diversionMaterial ?? null)) {
+    res.status(400).json({ error: "Unknown diversion material." });
+    return;
+  }
   const [created] = await db
     .insert(ticketsTable)
     .values({
@@ -73,6 +81,7 @@ router.post("/jobs/:jobId/tickets", async (req, res) => {
       description: data.description ?? "",
       wasteCategory: data.wasteCategory ?? null,
       costCode: data.costCode ?? null,
+      diversionMaterial: data.diversionMaterial ?? null,
     })
     .returning();
   res.status(201).json(created);
@@ -90,6 +99,13 @@ router.patch("/jobs/:jobId/tickets/:ticketId", async (req, res) => {
   const data = parsed.data;
   if (data.costCode !== undefined && !isKnownCostCode(data.costCode)) {
     res.status(400).json({ error: "Unknown cost code." });
+    return;
+  }
+  if (
+    data.diversionMaterial !== undefined &&
+    !isKnownDiversionMaterial(data.diversionMaterial)
+  ) {
+    res.status(400).json({ error: "Unknown diversion material." });
     return;
   }
   const [updated] = await db
@@ -110,6 +126,7 @@ router.patch("/jobs/:jobId/tickets/:ticketId", async (req, res) => {
       ...(data.description !== undefined && { description: data.description }),
       ...(data.wasteCategory !== undefined && { wasteCategory: data.wasteCategory }),
       ...(data.costCode !== undefined && { costCode: data.costCode }),
+      ...(data.diversionMaterial !== undefined && { diversionMaterial: data.diversionMaterial }),
     })
     .where(and(eq(ticketsTable.id, ticketId), eq(ticketsTable.jobId, jobId)))
     .returning();

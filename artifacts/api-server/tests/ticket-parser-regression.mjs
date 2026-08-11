@@ -43,6 +43,10 @@ const fixtures = [
       // "Metro Green" is an unambiguous landfill/recycling vendor match —
       // see suggestCostCode() in @workspace/cost-codes.
       costCode: "05-110",
+      // Metro Green is an inert/CONCRETE recycler, not scrap metal — no
+      // confident diversion-material match, so it stays null ("needs
+      // review") rather than guessing Metal. See suggestDiversionMaterial().
+      diversionMaterial: null,
     },
   },
   {
@@ -71,6 +75,9 @@ const fixtures = [
       // though it defaults to the C&D waste category above — cost code and
       // waste category are independent classifications.
       costCode: "05-110",
+      // "Willow Oak Landfill" is an unambiguous landfill/disposal vendor —
+      // a landfilled load is Residual/Trash (not diverted).
+      diversionMaterial: "Residual/Trash",
     },
   },
   {
@@ -95,6 +102,8 @@ const fixtures = [
       // "Metro Green Recycling Two, LLC" still matches the same "Metro
       // Green" landfill/recycling vendor rule.
       costCode: "05-110",
+      // Same inert/concrete recycler — no confident metal match, stays null.
+      diversionMaterial: null,
     },
   },
 ];

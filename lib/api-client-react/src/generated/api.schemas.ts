@@ -81,6 +81,11 @@ export interface TicketExtraction {
      * @nullable
      */
   costCode: string | null;
+  /**
+     * LEED Waste & Scrap Diversion material (see @workspace/diversion for the taxonomy), e.g. "Metal" or "Residual/Trash". Independent of wasteCategory and of the budget module. Set only when a vendor rule confidently matches; null means "needs review," never a guess.
+     * @nullable
+     */
+  diversionMaterial: string | null;
 }
 
 export interface Year {
@@ -149,6 +154,11 @@ export interface TicketRecord {
      * @nullable
      */
   costCode: string | null;
+  /**
+     * LEED Waste & Scrap Diversion material (see @workspace/diversion for the taxonomy), e.g. "Metal" or "Residual/Trash". Independent of wasteCategory. Null means "needs review," never a guess.
+     * @nullable
+     */
+  diversionMaterial: string | null;
   createdAt: string;
 }
 
@@ -173,6 +183,11 @@ export interface CreateTicketRecordInput {
      * @nullable
      */
   costCode?: string | null;
+  /**
+     * LEED Waste & Scrap Diversion material (see @workspace/diversion for the taxonomy). Omitted/null means "needs review," never a guess.
+     * @nullable
+     */
+  diversionMaterial?: string | null;
 }
 
 export interface UpdateTicketRecordInput {
@@ -196,6 +211,11 @@ export interface UpdateTicketRecordInput {
      * @nullable
      */
   costCode?: string | null;
+  /**
+     * LEED Waste & Scrap Diversion material (see @workspace/diversion for the taxonomy). Omitted/null means "needs review," never a guess.
+     * @nullable
+     */
+  diversionMaterial?: string | null;
 }
 
 /**

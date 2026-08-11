@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { ExtractTicketBody, ExtractTicketResponse } from "@workspace/api-zod";
 import type { WasteCategory } from "@workspace/api-zod";
 import { suggestCostCode } from "@workspace/cost-codes";
+import { suggestDiversionMaterial } from "@workspace/diversion";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -34,6 +35,10 @@ type TicketFields = {
   // suggestCostCode() below. Unlike wasteCategory, there is no safe
   // default: null means "needs manual review" and is never guessed.
   costCode: string | null;
+  // LEED Waste & Scrap Diversion material — see suggestDiversionMaterial().
+  // Independent of wasteCategory/costCode; null means "needs review" and is
+  // never guessed.
+  diversionMaterial: string | null;
 };
 
 const emptyFields: TicketFields = {
@@ -53,6 +58,7 @@ const emptyFields: TicketFields = {
   // gets the default category; it stays manually overridable in the UI.
   wasteCategory: "C&D",
   costCode: null,
+  diversionMaterial: null,
 };
 
 function extensionForMediaType(mediaType: string): string {
@@ -902,6 +908,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
       ...layoutFields,
       wasteCategory: classifyWasteCategory(layoutFields.vendor ?? ""),
       costCode: suggestCostCode(layoutFields.vendor, layoutFields.description),
+      diversionMaterial: suggestDiversionMaterial(layoutFields.vendor),
     });
   }
 
@@ -964,6 +971,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
     ) || "";
   const wasteCategory = classifyWasteCategory(vendor);
   const costCode = suggestCostCode(vendor, description);
+  const diversionMaterial = suggestDiversionMaterial(vendor);
 
   return ExtractTicketResponse.parse({
     ...emptyFields,
@@ -979,6 +987,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
     description,
     wasteCategory,
     costCode,
+    diversionMaterial,
   });
 }
 

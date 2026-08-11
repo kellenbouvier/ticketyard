@@ -77,11 +77,15 @@ export function parseTonnage(weight: string | null | undefined): number | null {
 type SuggestionRule = { pattern: RegExp; material: DiversionMaterial };
 
 const VENDOR_RULES: SuggestionRule[] = [
-  // Scrap-metal recyclers -> Metal (diverted).
+  // Scrap-metal recyclers -> Metal (diverted). Deliberately NOT a bare
+  // /recycling/ rule: this codebase already has inert/concrete recyclers
+  // (e.g. "Metro Green Recycling") that are NOT metal, so a generic
+  // "* Recycling" -> Metal would guess wrong. Only match unambiguous
+  // scrap-metal signals; anything else stays null ("needs review").
   { pattern: /sa\s+recycling/i, material: "Metal" },
   { pattern: /\bsims\b/i, material: "Metal" },
-  { pattern: /recycling/i, material: "Metal" },
   { pattern: /scrap/i, material: "Metal" },
+  { pattern: /metal\s+recycling/i, material: "Metal" },
   // Landfill / disposal vendors -> Residual/Trash (not diverted).
   { pattern: /\bdisposal\b/i, material: RESIDUAL_MATERIAL },
   { pattern: /\blandfill\b/i, material: RESIDUAL_MATERIAL },

@@ -30,5 +30,10 @@ export interface TicketRecord {
      * @nullable
      */
   costCode: string | null;
+  /**
+     * LEED Waste & Scrap Diversion material (see @workspace/diversion for the taxonomy), e.g. "Metal" or "Residual/Trash". Independent of wasteCategory. Null means "needs review," never a guess.
+     * @nullable
+     */
+  diversionMaterial: string | null;
   createdAt: Date;
 }

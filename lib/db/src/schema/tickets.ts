@@ -45,11 +45,20 @@ export const ticketsTable = pgTable(
     // artifacts/api-server/src/routes/ticketRecords.ts), not at the DB
     // layer, so extending the taxonomy never requires a migration.
     costCode: text("cost_code"),
+    // LEED Waste & Scrap Diversion material (see @workspace/diversion for the
+    // taxonomy). Plain nullable text, deliberately NOT a pg enum: it is
+    // independent of the C&D/Inert waste category and of the budget module,
+    // and DHG may extend the material list over time. Null = "needs review",
+    // never a guessed value; validated against the shared known-materials
+    // list at the API boundary (artifacts/api-server/src/routes/ticketRecords.ts),
+    // not at the DB layer, so extending the taxonomy never needs a migration.
+    diversionMaterial: text("diversion_material"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
     index("tickets_waste_category_idx").on(table.wasteCategory),
     index("tickets_cost_code_idx").on(table.costCode),
+    index("tickets_diversion_material_idx").on(table.diversionMaterial),
   ],
 );
 

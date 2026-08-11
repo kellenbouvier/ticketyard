@@ -74,7 +74,8 @@ export const ExtractTicketResponse = zod.object({
   "amount": zod.string(),
   "description": zod.string(),
   "wasteCategory": zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),
-  "costCode": zod.string().nullable().describe('DHG job-cost accounting code (the \"Cat\" column), e.g. \"05-110\". The PRIMARY classification for every ticket — see @workspace\/cost-codes for the taxonomy. Set only when a vendor or description rule confidently matches; null means \"needs manual review,\" never a guess.')
+  "costCode": zod.string().nullable().describe('DHG job-cost accounting code (the \"Cat\" column), e.g. \"05-110\". The PRIMARY classification for every ticket — see @workspace\/cost-codes for the taxonomy. Set only when a vendor or description rule confidently matches; null means \"needs manual review,\" never a guess.'),
+  "diversionMaterial": zod.string().nullable().describe('LEED Waste & Scrap Diversion material (see @workspace\/diversion for the taxonomy), e.g. \"Metal\" or \"Residual\/Trash\". Independent of wasteCategory and of the budget module. Set only when a vendor rule confidently matches; null means \"needs review,\" never a guess.')
 })
 
 
@@ -217,6 +218,7 @@ export const ListTicketsResponseItem = zod.object({
   "description": zod.string(),
   "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]),
   "costCode": zod.string().nullable().describe('DHG job-cost accounting code (the \"Cat\" column), e.g. \"05-110\". The PRIMARY classification for every ticket — see @workspace\/cost-codes for the taxonomy. Null means \"needs manual review,\" never a guess.'),
+  "diversionMaterial": zod.string().nullable().describe('LEED Waste & Scrap Diversion material (see @workspace\/diversion for the taxonomy), e.g. \"Metal\" or \"Residual\/Trash\". Independent of wasteCategory. Null means \"needs review,\" never a guess.'),
   "createdAt": zod.coerce.date()
 })
 export const ListTicketsResponse = zod.array(ListTicketsResponseItem)
@@ -247,7 +249,8 @@ export const CreateTicketRecordBody = zod.object({
   "amount": zod.string().optional(),
   "description": zod.string().optional(),
   "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]).optional(),
-  "costCode": zod.string().nullish().describe('DHG job-cost accounting code (the \"Cat\" column), e.g. \"05-110\". See @workspace\/cost-codes for the taxonomy. Omitted\/null means \"needs manual review,\" never a guess.')
+  "costCode": zod.string().nullish().describe('DHG job-cost accounting code (the \"Cat\" column), e.g. \"05-110\". See @workspace\/cost-codes for the taxonomy. Omitted\/null means \"needs manual review,\" never a guess.'),
+  "diversionMaterial": zod.string().nullish().describe('LEED Waste & Scrap Diversion material (see @workspace\/diversion for the taxonomy). Omitted\/null means \"needs review,\" never a guess.')
 })
 
 export const CreateTicketRecordResponse = zod.object({
@@ -268,6 +271,7 @@ export const CreateTicketRecordResponse = zod.object({
   "description": zod.string(),
   "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]),
   "costCode": zod.string().nullable().describe('DHG job-cost accounting code (the \"Cat\" column), e.g. \"05-110\". The PRIMARY classification for every ticket — see @workspace\/cost-codes for the taxonomy. Null means \"needs manual review,\" never a guess.'),
+  "diversionMaterial": zod.string().nullable().describe('LEED Waste & Scrap Diversion material (see @workspace\/diversion for the taxonomy), e.g. \"Metal\" or \"Residual\/Trash\". Independent of wasteCategory. Null means \"needs review,\" never a guess.'),
   "createdAt": zod.coerce.date()
 })
 
@@ -298,7 +302,8 @@ export const UpdateTicketRecordBody = zod.object({
   "amount": zod.string().optional(),
   "description": zod.string().optional(),
   "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]).optional(),
-  "costCode": zod.string().nullish().describe('DHG job-cost accounting code (the \"Cat\" column), e.g. \"05-110\". See @workspace\/cost-codes for the taxonomy. Omitted\/null means \"needs manual review,\" never a guess.')
+  "costCode": zod.string().nullish().describe('DHG job-cost accounting code (the \"Cat\" column), e.g. \"05-110\". See @workspace\/cost-codes for the taxonomy. Omitted\/null means \"needs manual review,\" never a guess.'),
+  "diversionMaterial": zod.string().nullish().describe('LEED Waste & Scrap Diversion material (see @workspace\/diversion for the taxonomy). Omitted\/null means \"needs review,\" never a guess.')
 })
 
 export const UpdateTicketRecordResponse = zod.object({
@@ -319,6 +324,7 @@ export const UpdateTicketRecordResponse = zod.object({
   "description": zod.string(),
   "wasteCategory": zod.union([zod.enum(['C&D', 'Inert']).describe('Disposal category. \"C&D\" = general construction\/demolition debris to a traditional landfill. \"Inert\" = clean concrete, asphalt, brick, rock, or clean fill taken to an inert landfill \/ recycling facility. Disposal cost, hauling cost, billing, and profitability are tracked separately per category and must never be summed together.'),zod.null()]),
   "costCode": zod.string().nullable().describe('DHG job-cost accounting code (the \"Cat\" column), e.g. \"05-110\". The PRIMARY classification for every ticket — see @workspace\/cost-codes for the taxonomy. Null means \"needs manual review,\" never a guess.'),
+  "diversionMaterial": zod.string().nullable().describe('LEED Waste & Scrap Diversion material (see @workspace\/diversion for the taxonomy), e.g. \"Metal\" or \"Residual\/Trash\". Independent of wasteCategory. Null means \"needs review,\" never a guess.'),
   "createdAt": zod.coerce.date()
 })
 
