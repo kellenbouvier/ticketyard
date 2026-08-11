@@ -36,6 +36,30 @@ All notable changes to this project during the audit/overhaul are logged here.
   nothing stopped two jobs sharing a job number inside one year.
 
 ### Added
+- Flexible per-job **budgeting module**. One unified builder (no method_type /
+  no "choose a method" step): per cost-code SECTION the user enters a lump sum,
+  cost-code line items, or both (hybrid = coded lines + an optional
+  "Additional [Section] (non-coded)" field). Subtotals, grand total, and
+  remaining-vs-target are computed live, never stored.
+  - `lib/budget` (`@workspace/budget`): shared pure `computeBudgetTotals(lines,
+    target)` + `parseBudgetAmount` — the single source of truth reused by the
+    API, the web UI, and unit tests (`lib/budget/tests/budget-totals.test.mjs`:
+    lump/codes/hybrid/empty/over-under/blank).
+  - `lib/db/src/schema/budgets.ts`: `job_budgets` (one per job, UNIQUE jobId,
+    text `target_amount`) and `budget_lines` (section, nullable `cost_code`,
+    label, text `amount`, `sort_order`; indexed on budgetId and
+    (budgetId, section)). Nothing derived is persisted.
+  - `lib/api-spec/openapi.yaml` + regenerated `lib/api-zod` /
+    `lib/api-client-react`: `GET`/`PUT /jobs/{jobId}/budget`
+    (`JobBudget`, `BudgetLine`, `PutBudgetInput`, `BudgetLineInput`).
+  - `artifacts/api-server/src/routes/budgets.ts`: auth-gated GET (empty budget
+    when none yet) and replace-all PUT upsert in a transaction; every non-null
+    cost code validated against the shared taxonomy (400 on unknown).
+  - `artifacts/ticket-yard/src/lib/budgetForm.ts` +
+    `src/components/BudgetBuilder.tsx`: the unified builder (per-section
+    collapse/lump vs. expand/cost-codes+additional, live Target/Current/
+    Remaining bar, Expand-All template). Opens automatically after a job is
+    created and from a "Budget" button on each job row and in the Register view.
 - `lib/db/src/schema/tickets.ts`: new `tickets` table (FK to `jobs`,
   cascade delete) persisting the ticket register — every extraction field,
   `status`, `error`, `fileName`, `createdAt`.
