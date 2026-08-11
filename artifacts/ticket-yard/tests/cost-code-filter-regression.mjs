@@ -13,7 +13,7 @@ const rows = [
   { costCode: "05-110", amount: "$50.50" },
   { costCode: "06-100", amount: "$20.00" },
   { costCode: null, amount: "$75.00" },
-  { costCode: "99-999", amount: "$10.00" }, // unrecognized -> needs review
+  { costCode: "00-000", amount: "$10.00" }, // not a real DHG code -> needs review
 ];
 
 // "All" is a passthrough for both rows and totals.
@@ -36,7 +36,7 @@ assert.equal(landfillTotals.unassignedCount, 0);
 const reviewRows = filterRowsByCostCode(rows, COST_CODE_FILTER_UNASSIGNED);
 assert.equal(reviewRows.length, 2, "null + unknown code");
 assert.ok(rowMatchesCostCodeFilter({ costCode: null }, COST_CODE_FILTER_UNASSIGNED));
-assert.ok(rowMatchesCostCodeFilter({ costCode: "99-999" }, COST_CODE_FILTER_UNASSIGNED));
+assert.ok(rowMatchesCostCodeFilter({ costCode: "00-000" }, COST_CODE_FILTER_UNASSIGNED));
 assert.ok(!rowMatchesCostCodeFilter({ costCode: "05-110" }, COST_CODE_FILTER_UNASSIGNED));
 const reviewTotals = filterCostCodeTotals(allTotals, COST_CODE_FILTER_UNASSIGNED);
 assert.equal(reviewTotals.sections.length, 0);

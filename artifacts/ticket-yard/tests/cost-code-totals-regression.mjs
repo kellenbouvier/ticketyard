@@ -9,7 +9,7 @@ const rows = [
   { costCode: "05-110", amount: "$50.50" },
   { costCode: "06-100", amount: "$20.00" },
   { costCode: null, amount: "$75.00" },
-  { costCode: "99-999", amount: "$10.00" }, // defensively unassigned, not a crash
+  { costCode: "00-000", amount: "$10.00" }, // not a real DHG code -> defensively unassigned, not a crash
 ];
 
 const totals = computeCostCodeTotals(rows);
