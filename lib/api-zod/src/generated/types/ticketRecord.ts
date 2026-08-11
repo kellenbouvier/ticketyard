@@ -25,5 +25,10 @@ export interface TicketRecord {
   amount: string;
   description: string;
   wasteCategory: WasteCategory | null;
+  /**
+     * DHG job-cost accounting code (the "Cat" column), e.g. "05-110". The PRIMARY classification for every ticket — see @workspace/cost-codes for the taxonomy. Null means "needs manual review," never a guess.
+     * @nullable
+     */
+  costCode: string | null;
   createdAt: Date;
 }

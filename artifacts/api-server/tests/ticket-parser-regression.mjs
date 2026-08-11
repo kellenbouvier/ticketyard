@@ -40,6 +40,9 @@ const fixtures = [
       amount: "",
       description: "Concrete w/ Wire or Rebar",
       wasteCategory: "Inert",
+      // "Metro Green" is an unambiguous landfill/recycling vendor match —
+      // see suggestCostCode() in @workspace/cost-codes.
+      costCode: "05-110",
     },
   },
   {
@@ -64,6 +67,10 @@ const fixtures = [
       // to C&D — which also matches the ticket's own product description
       // ("2000T-C&D - Mixed").
       wasteCategory: "C&D",
+      // "Willow Oak" is also an unambiguous landfill vendor match, even
+      // though it defaults to the C&D waste category above — cost code and
+      // waste category are independent classifications.
+      costCode: "05-110",
     },
   },
   {
@@ -85,6 +92,9 @@ const fixtures = [
       amount: "$5,600.00",
       description: "Concrete",
       wasteCategory: "Inert",
+      // "Metro Green Recycling Two, LLC" still matches the same "Metro
+      // Green" landfill/recycling vendor rule.
+      costCode: "05-110",
     },
   },
 ];

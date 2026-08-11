@@ -28,6 +28,7 @@ import type {
   TicketRecord,
   WasteCategory,
 } from '@workspace/api-client-react';
+import { costCodesBySection, formatCostCode } from '@workspace/cost-codes';
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -68,22 +69,28 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { parseTonnage, formatTons } from '@/lib/tonnage';
+import { computeCostCodeTotals } from '@/lib/costCodeTotals';
 
 const queryClient = new QueryClient();
 
 // ─── Row / extraction types ───────────────────────────────────────────────────
 
 type RowStatus = 'Reading' | 'Processed' | 'Failed' | 'Manual';
-// Waste category is edited through its own dedicated two-option selector
-// (never a free-text input — see WASTE_CATEGORY_OPTIONS), so it's handled
-// by a separate onCategoryChange callback rather than the generic
-// string-field FieldKey/onChange path the other fields share.
-type RowExtraction = Omit<TicketExtraction, 'wasteCategory'> & {
+// Waste category and cost code are each edited through their own dedicated
+// selector (never a free-text input — see WASTE_CATEGORY_OPTIONS and
+// COST_CODE_SECTIONS below), so they're handled by separate onCategoryChange
+// / onCostCodeChange callbacks rather than the generic string-field
+// FieldKey/onChange path the other fields share.
+type RowExtraction = Omit<TicketExtraction, 'wasteCategory' | 'costCode'> & {
   // Null only for rows restored from a legacy record that no vendor rule
   // could confidently classify — "needs review", never guessed.
   wasteCategory: WasteCategory | null;
+  // The PRIMARY classification for the ticket (DHG's accounting "Cat"
+  // column). Null means "needs review" — never a guessed value, even for a
+  // freshly-created row (unlike wasteCategory, there is no safe default).
+  costCode: string | null;
 };
-type FieldKey = keyof Omit<TicketExtraction, 'wasteCategory'>;
+type FieldKey = keyof Omit<TicketExtraction, 'wasteCategory' | 'costCode'>;
 type TicketRow = {
   id: string;
   /** DB id once this row has been persisted; undefined while a fresh
@@ -130,6 +137,7 @@ function ticketRecordToRow(record: TicketRecord): TicketRow {
       amount: record.amount,
       description: record.description,
       wasteCategory: record.wasteCategory,
+      costCode: record.costCode,
     },
   };
 }
@@ -149,7 +157,14 @@ const emptyExtraction: RowExtraction = {
   // it's always shown and always one click to override, never left as an
   // ambiguous blank the way OCR text fields are.
   wasteCategory: 'C&D',
+  // Unlike wasteCategory there is no safe default cost code — a fresh
+  // manual row always starts "needs review" until a vendor rule fires (see
+  // suggestCostCode() server-side) or the user picks one.
+  costCode: null,
 };
+
+// Static — computed once from the shared taxonomy, not per-render.
+const COST_CODE_SECTIONS = costCodesBySection();
 
 const acceptedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const fields: { key: FieldKey; label: string; short: string }[] = [
@@ -1220,9 +1235,10 @@ function Sidebar({ year, job, onNewBatch, onBackToJobs, onBackToYears }: {
 
 // ─── Ticket register table ────────────────────────────────────────────────────
 
-// Source(170px) + 9 generic fields + Category selector + Actions(108px) —
-// must have exactly as many tracks as cells rendered per row below.
-const REGISTER_GRID_COLS = 'grid-cols-[170px_1fr_.9fr_.9fr_.8fr_.85fr_.95fr_.75fr_.85fr_1.3fr_1.05fr_108px]';
+// Source(170px) + 9 generic fields + Cost Code selector + Category selector
+// + Actions(108px) — must have exactly as many tracks as cells rendered per
+// row below.
+const REGISTER_GRID_COLS = 'grid-cols-[170px_1fr_.9fr_.9fr_.8fr_.85fr_.95fr_.75fr_.85fr_1.3fr_1.5fr_1.05fr_108px]';
 
 function WasteCategorySelect({ value, disabled, onChange, ariaLabel }: {
   value: WasteCategory | null;
@@ -1246,10 +1262,40 @@ function WasteCategorySelect({ value, disabled, onChange, ariaLabel }: {
   );
 }
 
-function TicketRegister({ rows, onChange, onCategoryChange, onDelete, onRetry, onPreview }: {
+// The PRIMARY classification for every ticket (DHG's accounting "Cat"
+// column — see @workspace/cost-codes). Grouped by section, always manually
+// overridable; null renders as "Needs review" rather than a guess.
+function CostCodeSelect({ value, disabled, onChange, ariaLabel }: {
+  value: string | null;
+  disabled: boolean;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <select
+      aria-label={ariaLabel}
+      disabled={disabled}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value)}
+      className={`ticket-field ${value ? '' : 'text-[hsl(var(--destructive))]'}`}
+    >
+      {!value && <option value="" disabled>Needs review</option>}
+      {COST_CODE_SECTIONS.map(({ section, codes }) => (
+        <optgroup key={section} label={section}>
+          {codes.map((entry) => (
+            <option key={entry.code} value={entry.code}>{formatCostCode(entry)}</option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
+function TicketRegister({ rows, onChange, onCategoryChange, onCostCodeChange, onDelete, onRetry, onPreview }: {
   rows: TicketRow[];
   onChange: (id: string, field: FieldKey, value: string) => void;
   onCategoryChange: (id: string, category: WasteCategory) => void;
+  onCostCodeChange: (id: string, costCode: string) => void;
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   onPreview: (row: TicketRow) => void;
@@ -1269,9 +1315,9 @@ function TicketRegister({ rows, onChange, onCategoryChange, onDelete, onRetry, o
         </div>
       </div>
       <div className="overflow-x-auto">
-        <div className="min-w-[1250px]">
+        <div className="min-w-[1450px]">
           <div className={`grid ${REGISTER_GRID_COLS} gap-3 bg-[hsl(var(--muted)/.5)] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]`}>
-            <div>Source</div>{fields.map((f) => <div key={f.key}>{f.short}</div>)}<div>Category</div><div className="text-right">Actions</div>
+            <div>Source</div>{fields.map((f) => <div key={f.key}>{f.short}</div>)}<div>Cost Code</div><div>Category</div><div className="text-right">Actions</div>
           </div>
           {rows.length === 0 && (
             <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
@@ -1302,6 +1348,12 @@ function TicketRegister({ rows, onChange, onCategoryChange, onDelete, onRetry, o
                   className="ticket-field" value={row.extraction[f.key]} placeholder="—"
                   onChange={(e) => onChange(row.id, f.key, e.target.value)} />
               ))}
+              <CostCodeSelect
+                ariaLabel={`Cost code for ${row.fileName}`}
+                disabled={row.status === 'Reading'}
+                value={row.extraction.costCode}
+                onChange={(costCode) => onCostCodeChange(row.id, costCode)}
+              />
               <WasteCategorySelect
                 ariaLabel={`Waste category for ${row.fileName}`}
                 disabled={row.status === 'Reading'}
@@ -1323,6 +1375,50 @@ function TicketRegister({ rows, onChange, onCategoryChange, onDelete, onRetry, o
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Cost code report — section subtotals, mirroring the DHG "JC Entries
+// by Job" report ───────────────────────────────────────────────────────────
+
+function CostCodeReport({ totals }: { totals: ReturnType<typeof computeCostCodeTotals> }) {
+  const currency = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  if (!totals.sections.length && !totals.unassignedCount) return null;
+  return (
+    <section className="mt-5 overflow-hidden rounded-lg border border-[hsl(var(--card-border))] bg-white shadow-sm animate-rise delay-3">
+      <div className="border-b border-[hsl(var(--border))] px-5 py-3.5">
+        <h2 className="text-[14px] font-semibold">Cost Code Totals</h2>
+        <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">Amount by cost code and section — the PRIMARY classification for every ticket.</p>
+      </div>
+      <div className="divide-y divide-[hsl(var(--border)/.7)]">
+        {totals.sections.map((section) => (
+          <div key={section.section} className="px-5 py-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-[.08em] text-[hsl(var(--primary))]">{section.section}</span>
+              <span className="font-mono-app text-[12px] font-semibold text-[hsl(var(--foreground))]">{currency(section.amount)}</span>
+            </div>
+            <div className="space-y-1">
+              {section.codes.map((code) => (
+                <div key={code.code} className="flex items-center justify-between text-[12px] text-[hsl(var(--muted-foreground))]">
+                  <span>{formatCostCode({ section: section.section, code: code.code, name: code.name })} <span className="opacity-60">({code.count})</span></span>
+                  <span className="font-mono-app">{currency(code.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {totals.unassignedCount > 0 && (
+          <div className="flex items-center justify-between px-5 py-3 text-[12px] text-[hsl(var(--destructive))]">
+            <span>Needs review <span className="opacity-60">({totals.unassignedCount})</span></span>
+            <span className="font-mono-app">{currency(totals.unassignedAmount)}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between bg-[hsl(var(--muted)/.4)] px-5 py-3 text-[12px] font-semibold">
+          <span>Grand Total</span>
+          <span className="font-mono-app">{currency(totals.grandTotal)}</span>
         </div>
       </div>
     </section>
@@ -1451,6 +1547,15 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
     }
   }, [announce, job.id, rows, updateTicket]);
 
+  const updateCostCode = useCallback((id: string, costCode: string) => {
+    setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction: { ...r.extraction, costCode } } : r));
+    const row = rows.find((r) => r.id === id);
+    if (row?.serverId) {
+      void updateTicket.mutateAsync({ jobId: job.id, ticketId: row.serverId, data: { costCode } })
+        .catch(() => announce('Could not save the cost code. Try again.', 'error'));
+    }
+  }, [announce, job.id, rows, updateTicket]);
+
   const deleteRow = useCallback((id: string) => {
     const row = rows.find((r) => r.id === id);
     setRows((cur) => cur.filter((r) => r.id !== id));
@@ -1510,28 +1615,42 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
       totalTons: tonnages.reduce<number>((s, t) => s + (t ?? 0), 0),
       cdTons: tonsForCategory('C&D'),
       inertTons: tonsForCategory('Inert'),
+      costCodes: computeCostCodeTotals(rows.map((r) => ({ costCode: r.extraction.costCode, amount: r.extraction.amount }))),
     };
   }, [rows]);
 
   const exportCsv = useCallback(() => {
-    const header = ['Document type', 'Vendor', 'Ticket number', 'Invoice number', 'Purchase Order', 'Job Number', 'Date', 'Weight', 'Amount', 'Description', 'Waste Category', 'Source file', 'Status'];
+    const header = ['Document type', 'Vendor', 'Ticket number', 'Invoice number', 'Purchase Order', 'Job Number', 'Date', 'Weight', 'Amount', 'Description', 'Cost Code', 'Waste Category', 'Source file', 'Status'];
     const v = (s: string) => `"${s.replaceAll('"', '""')}"`;
     const body = rows.map((r) => [
       r.extraction.documentType,
       ...fields.map((f) => r.extraction[f.key]),
+      formatCostCode(r.extraction.costCode) || 'Needs review',
       r.extraction.wasteCategory ? WASTE_CATEGORY_LABELS[r.extraction.wasteCategory] : 'Needs review',
       r.fileName,
       r.status,
     ].map(v).join(','));
     // Trailing tonnage summary — C&D and Inert stay on their own rows,
     // never blended into one figure, matching the dashboard stat cards.
-    const summary = [
+    const tonnageSummary = [
       [],
       ['Tonnage Summary'],
       ['Total Net Tons', totals.totalTons.toFixed(2)],
       ['C&D Landfill Tons', totals.cdTons.toFixed(2)],
       ['Inert / Recycling Tons', totals.inertTons.toFixed(2)],
-    ].map((row) => row.map(v).join(','));
+    ];
+    // Trailing cost-code section-subtotal summary, mirroring the "JC
+    // Entries by Job" report's section subtotals.
+    const costCodeSummary: (string | number)[][] = [[], ['Cost Code Summary'], ['Section', 'Code', 'Name', 'Amount']];
+    for (const section of totals.costCodes.sections) {
+      for (const code of section.codes) {
+        costCodeSummary.push([section.section, code.code, code.name, code.amount.toFixed(2)]);
+      }
+      costCodeSummary.push([`${section.section} Subtotal`, '', '', section.amount.toFixed(2)]);
+    }
+    costCodeSummary.push(['Needs Review', '', '', totals.costCodes.unassignedAmount.toFixed(2)]);
+    costCodeSummary.push(['Grand Total', '', '', totals.costCodes.grandTotal.toFixed(2)]);
+    const summary = [...tonnageSummary, ...costCodeSummary].map((row) => row.map((cell) => v(String(cell))).join(','));
     const blob = new Blob([[header.map(v).join(','), ...body, ...summary].join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1654,7 +1773,7 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
                   <AlertTriangle size={14} /> Could not load the saved register. Showing this session's data only.
                 </div>
               )}
-              <TicketRegister rows={rows} onChange={updateField} onCategoryChange={updateCategory} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
+              <TicketRegister rows={rows} onChange={updateField} onCategoryChange={updateCategory} onCostCodeChange={updateCostCode} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
               <div className="mt-3.5 flex items-center justify-between gap-3">
                 <button
                   onClick={addManualRow}
@@ -1671,6 +1790,7 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
                   <span className="ml-1 border-l border-white/25 pl-2 font-mono-app text-[10px]">.csv</span>
                 </button>
               </div>
+              <CostCodeReport totals={totals.costCodes} />
             </div>
           </div>
 

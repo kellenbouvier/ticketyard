@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { ExtractTicketBody, ExtractTicketResponse } from "@workspace/api-zod";
 import type { WasteCategory } from "@workspace/api-zod";
+import { suggestCostCode } from "@workspace/cost-codes";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -29,6 +30,10 @@ type TicketFields = {
   amount: string;
   description: string;
   wasteCategory: WasteCategory;
+  // The PRIMARY classification (DHG's accounting "Cat" column) — see
+  // suggestCostCode() below. Unlike wasteCategory, there is no safe
+  // default: null means "needs manual review" and is never guessed.
+  costCode: string | null;
 };
 
 const emptyFields: TicketFields = {
@@ -47,6 +52,7 @@ const emptyFields: TicketFields = {
   // classifyWasteCategory() below. Even a wholly unreadable ticket still
   // gets the default category; it stays manually overridable in the UI.
   wasteCategory: "C&D",
+  costCode: null,
 };
 
 function extensionForMediaType(mediaType: string): string {
@@ -895,6 +901,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
       ...emptyFields,
       ...layoutFields,
       wasteCategory: classifyWasteCategory(layoutFields.vendor ?? ""),
+      costCode: suggestCostCode(layoutFields.vendor, layoutFields.description),
     });
   }
 
@@ -956,6 +963,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
       /^(?:description|material|materials|load|contents|waste\s+type|product)\s*[:#-]?\s*(.*)$/i,
     ) || "";
   const wasteCategory = classifyWasteCategory(vendor);
+  const costCode = suggestCostCode(vendor, description);
 
   return ExtractTicketResponse.parse({
     ...emptyFields,
@@ -970,6 +978,7 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
     amount,
     description,
     wasteCategory,
+    costCode,
   });
 }
 

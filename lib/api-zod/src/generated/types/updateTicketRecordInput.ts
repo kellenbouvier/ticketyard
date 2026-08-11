@@ -24,4 +24,9 @@ export interface UpdateTicketRecordInput {
   amount?: string;
   description?: string;
   wasteCategory?: WasteCategory | null;
+  /**
+     * DHG job-cost accounting code (the "Cat" column), e.g. "05-110". See @workspace/cost-codes for the taxonomy. Omitted/null means "needs manual review," never a guess.
+     * @nullable
+     */
+  costCode?: string | null;
 }

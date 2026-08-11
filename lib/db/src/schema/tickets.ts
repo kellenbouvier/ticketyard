@@ -37,9 +37,20 @@ export const ticketsTable = pgTable(
     // in artifacts/api-server/src/routes/tickets.ts — but it stays
     // manually overridable and un-guessable for rows nothing can classify.
     wasteCategory: wasteCategoryEnum("waste_category"),
+    // The PRIMARY classification for every ticket (DHG's accounting "Cat"
+    // column — see @workspace/cost-codes for the taxonomy). Plain text, not
+    // a pg enum: DHG adds codes over time, and a rigid enum would require a
+    // DB migration for every new one. Nullable = "needs review", never a
+    // guessed value; validated against the known-codes list on write (see
+    // artifacts/api-server/src/routes/ticketRecords.ts), not at the DB
+    // layer, so extending the taxonomy never requires a migration.
+    costCode: text("cost_code"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (table) => [index("tickets_waste_category_idx").on(table.wasteCategory)],
+  (table) => [
+    index("tickets_waste_category_idx").on(table.wasteCategory),
+    index("tickets_cost_code_idx").on(table.costCode),
+  ],
 );
 
 export const ticketsRelations = relations(ticketsTable, ({ one }) => ({
