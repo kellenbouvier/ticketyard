@@ -26,7 +26,9 @@ import type {
   CreateYearInput,
   HealthStatus,
   Job,
+  JobBudget,
   LoginInput,
+  PutBudgetInput,
   TicketExtraction,
   TicketExtractionInput,
   TicketRecord,
@@ -1240,5 +1242,156 @@ export const useDeleteTicketRecord = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteTicketRecordMutationOptions(options));
+    }
+
+export const getGetJobBudgetUrl = (jobId: number,) => {
+
+
+
+
+  return `/api/jobs/${jobId}/budget`
+}
+
+/**
+ * Returns the job's budget target and lines. If the job has no budget yet, returns an empty budget (targetAmount "0", no lines) so the builder can start fresh. 404 only when the job itself does not exist.
+ * @summary Get the flexible budget for a job
+ */
+export const getJobBudget = async (jobId: number, options?: Parameters<typeof customFetch>[1]): Promise<JobBudget> => {
+
+  return customFetch<JobBudget>(getGetJobBudgetUrl(jobId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetJobBudgetQueryKey = (jobId: number,) => {
+    return [
+    `/api/jobs/${jobId}/budget`
+    ] as const;
+    }
+
+
+export const getGetJobBudgetQueryOptions = <TData = Awaited<ReturnType<typeof getJobBudget>>, TError = ErrorType<void>>(jobId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJobBudget>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetJobBudgetQueryKey(jobId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJobBudget>>> = ({ signal }) => getJobBudget(jobId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: jobId !== null && jobId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJobBudget>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetJobBudgetQueryResult = NonNullable<Awaited<ReturnType<typeof getJobBudget>>>
+export type GetJobBudgetQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the flexible budget for a job
+ */
+
+export function useGetJobBudget<TData = Awaited<ReturnType<typeof getJobBudget>>, TError = ErrorType<void>>(
+ jobId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJobBudget>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetJobBudgetQueryOptions(jobId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPutJobBudgetUrl = (jobId: number,) => {
+
+
+
+
+  return `/api/jobs/${jobId}/budget`
+}
+
+/**
+ * Upsert with replace-all semantics: the supplied target and lines become the job's entire budget. Each non-null costCode must be a known cost code (400 otherwise).
+ * @summary Create or replace the flexible budget for a job
+ */
+export const putJobBudget = async (jobId: number,
+    putBudgetInput: PutBudgetInput, options?: Parameters<typeof customFetch>[1]): Promise<JobBudget> => {
+
+  return customFetch<JobBudget>(getPutJobBudgetUrl(jobId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(putBudgetInput)
+  }
+);}
+
+
+
+
+
+export const getPutJobBudgetMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putJobBudget>>, TError,{jobId: number;data: BodyType<PutBudgetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof putJobBudget>>, TError,{jobId: number;data: BodyType<PutBudgetInput>}, TContext> => {
+
+const mutationKey = ['putJobBudget'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putJobBudget>>, {jobId: number;data: BodyType<PutBudgetInput>}> = (props) => {
+          const {jobId,data} = props ?? {};
+
+          return  putJobBudget(jobId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutJobBudgetMutationResult = NonNullable<Awaited<ReturnType<typeof putJobBudget>>>
+    export type PutJobBudgetMutationBody = BodyType<PutBudgetInput>
+    export type PutJobBudgetMutationError = ErrorType<void>
+
+    /**
+ * @summary Create or replace the flexible budget for a job
+ */
+export const usePutJobBudget = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putJobBudget>>, TError,{jobId: number;data: BodyType<PutBudgetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof putJobBudget>>,
+        TError,
+        {jobId: number;data: BodyType<PutBudgetInput>},
+        TContext
+      > => {
+      return useMutation(getPutJobBudgetMutationOptions(options));
     }
 

@@ -7,12 +7,16 @@
  */
 
 export * from './authUser';
+export * from './budgetLine';
+export * from './budgetLineInput';
 export * from './createJobInput';
 export * from './createTicketRecordInput';
 export * from './createYearInput';
 export * from './healthStatus';
 export * from './job';
+export * from './jobBudget';
 export * from './loginInput';
+export * from './putBudgetInput';
 export * from './ticketExtraction';
 export * from './ticketExtractionDocumentType';
 export * from './ticketExtractionInput';

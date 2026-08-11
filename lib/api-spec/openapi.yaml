@@ -20,6 +20,8 @@ tags:
     description: Job management
   - name: ticket-records
     description: Persisted ticket register rows for a job
+  - name: budgets
+    description: Flexible per-job budget (target + cost-code section lines)
 paths:
   /healthz:
     get:
@@ -348,6 +350,61 @@ paths:
           description: Deleted
         "404":
           description: Ticket register row not found
+  /jobs/{jobId}/budget:
+    get:
+      operationId: getJobBudget
+      tags: [budgets]
+      summary: Get the flexible budget for a job
+      description: >-
+        Returns the job's budget target and lines. If the job has no budget
+        yet, returns an empty budget (targetAmount "0", no lines) so the
+        builder can start fresh. 404 only when the job itself does not exist.
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The job's budget (possibly empty)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobBudget"
+        "404":
+          description: Job not found
+    put:
+      operationId: putJobBudget
+      tags: [budgets]
+      summary: Create or replace the flexible budget for a job
+      description: >-
+        Upsert with replace-all semantics: the supplied target and lines
+        become the job's entire budget. Each non-null costCode must be a
+        known cost code (400 otherwise).
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PutBudgetInput"
+      responses:
+        "200":
+          description: The saved budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobBudget"
+        "400":
+          description: Invalid budget (e.g. an unknown cost code)
+        "404":
+          description: Job not found
 components:
   schemas:
     HealthStatus:
@@ -677,3 +734,79 @@ components:
             DHG job-cost accounting code (the "Cat" column), e.g. "05-110".
             See @workspace/cost-codes for the taxonomy. Omitted/null means
             "needs manual review," never a guess.
+    BudgetLine:
+      type: object
+      description: >-
+        One line of a job budget. There is no line "type" — the shape is
+        implied: costCode null with a section-name label is a lump sum or an
+        "Additional (non-coded)" line; a set costCode is a cost-code line.
+      properties:
+        section:
+          type: string
+          description: A cost-code section name (see @workspace/cost-codes).
+        costCode:
+          type: ["string", "null"]
+          description: >-
+            A known cost code within the section, or null for a lump-sum /
+            "Additional (non-coded)" line.
+        label:
+          type: string
+        amount:
+          type: string
+          description: Money as text ($ , whitespace tolerated; blank -> 0).
+        sortOrder:
+          type: integer
+      required:
+        - section
+        - costCode
+        - label
+        - amount
+        - sortOrder
+    JobBudget:
+      type: object
+      description: >-
+        A job's flexible budget. No method_type: one unified budget holds a
+        target and a flat list of lines; per section the lines may be a lump
+        sum, cost-code items, or both. Subtotals/grandTotal/remaining are
+        never stored — compute them with @workspace/budget.
+      properties:
+        jobId:
+          type: integer
+        targetAmount:
+          type: string
+          description: Target budget amount as text (blank -> 0).
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/BudgetLine"
+      required:
+        - jobId
+        - targetAmount
+        - lines
+    BudgetLineInput:
+      type: object
+      properties:
+        section:
+          type: string
+          minLength: 1
+        costCode:
+          type: ["string", "null"]
+        label:
+          type: string
+        amount:
+          type: string
+      required:
+        - section
+    PutBudgetInput:
+      type: object
+      description: Replace-all upsert body for a job's budget.
+      properties:
+        targetAmount:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/BudgetLineInput"
+      required:
+        - targetAmount
+        - lines

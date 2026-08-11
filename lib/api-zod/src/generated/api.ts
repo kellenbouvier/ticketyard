@@ -334,3 +334,58 @@ export const DeleteTicketRecordParams = zod.object({
 export const DeleteTicketRecordResponse = zod.void()
 
 
+/**
+ * Returns the job's budget target and lines. If the job has no budget yet, returns an empty budget (targetAmount "0", no lines) so the builder can start fresh. 404 only when the job itself does not exist.
+ * @summary Get the flexible budget for a job
+ */
+export const GetJobBudgetParams = zod.object({
+  "jobId": zod.coerce.number().int()
+})
+
+export const GetJobBudgetResponse = zod.object({
+  "jobId": zod.number().int(),
+  "targetAmount": zod.string().describe('Target budget amount as text (blank -> 0).'),
+  "lines": zod.array(zod.object({
+  "section": zod.string().describe('A cost-code section name (see @workspace\/cost-codes).'),
+  "costCode": zod.string().nullable().describe('A known cost code within the section, or null for a lump-sum \/ \"Additional (non-coded)\" line.'),
+  "label": zod.string(),
+  "amount": zod.string().describe('Money as text ($ , whitespace tolerated; blank -> 0).'),
+  "sortOrder": zod.number().int()
+}).describe('One line of a job budget. There is no line \"type\" — the shape is implied: costCode null with a section-name label is a lump sum or an \"Additional (non-coded)\" line; a set costCode is a cost-code line.'))
+}).describe('A job\'s flexible budget. No method_type: one unified budget holds a target and a flat list of lines; per section the lines may be a lump sum, cost-code items, or both. Subtotals\/grandTotal\/remaining are never stored — compute them with @workspace\/budget.')
+
+
+/**
+ * Upsert with replace-all semantics: the supplied target and lines become the job's entire budget. Each non-null costCode must be a known cost code (400 otherwise).
+ * @summary Create or replace the flexible budget for a job
+ */
+export const PutJobBudgetParams = zod.object({
+  "jobId": zod.coerce.number().int()
+})
+
+
+
+
+export const PutJobBudgetBody = zod.object({
+  "targetAmount": zod.string(),
+  "lines": zod.array(zod.object({
+  "section": zod.string().min(1),
+  "costCode": zod.string().nullish(),
+  "label": zod.string().optional(),
+  "amount": zod.string().optional()
+}))
+}).describe('Replace-all upsert body for a job\'s budget.')
+
+export const PutJobBudgetResponse = zod.object({
+  "jobId": zod.number().int(),
+  "targetAmount": zod.string().describe('Target budget amount as text (blank -> 0).'),
+  "lines": zod.array(zod.object({
+  "section": zod.string().describe('A cost-code section name (see @workspace\/cost-codes).'),
+  "costCode": zod.string().nullable().describe('A known cost code within the section, or null for a lump-sum \/ \"Additional (non-coded)\" line.'),
+  "label": zod.string(),
+  "amount": zod.string().describe('Money as text ($ , whitespace tolerated; blank -> 0).'),
+  "sortOrder": zod.number().int()
+}).describe('One line of a job budget. There is no line \"type\" — the shape is implied: costCode null with a section-name label is a lump sum or an \"Additional (non-coded)\" line; a set costCode is a cost-code line.'))
+}).describe('A job\'s flexible budget. No method_type: one unified budget holds a target and a flat list of lines; per section the lines may be a lump sum, cost-code items, or both. Subtotals\/grandTotal\/remaining are never stored — compute them with @workspace\/budget.')
+
+

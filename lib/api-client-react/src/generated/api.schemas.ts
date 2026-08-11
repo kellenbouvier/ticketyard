@@ -198,3 +198,47 @@ export interface UpdateTicketRecordInput {
   costCode?: string | null;
 }
 
+/**
+ * One line of a job budget. There is no line "type" — the shape is implied: costCode null with a section-name label is a lump sum or an "Additional (non-coded)" line; a set costCode is a cost-code line.
+ */
+export interface BudgetLine {
+  /** A cost-code section name (see @workspace/cost-codes). */
+  section: string;
+  /**
+     * A known cost code within the section, or null for a lump-sum / "Additional (non-coded)" line.
+     * @nullable
+     */
+  costCode: string | null;
+  label: string;
+  /** Money as text ($ , whitespace tolerated; blank -> 0). */
+  amount: string;
+  sortOrder: number;
+}
+
+/**
+ * A job's flexible budget. No method_type: one unified budget holds a target and a flat list of lines; per section the lines may be a lump sum, cost-code items, or both. Subtotals/grandTotal/remaining are never stored — compute them with @workspace/budget.
+ */
+export interface JobBudget {
+  jobId: number;
+  /** Target budget amount as text (blank -> 0). */
+  targetAmount: string;
+  lines: BudgetLine[];
+}
+
+export interface BudgetLineInput {
+  /** @minLength 1 */
+  section: string;
+  /** @nullable */
+  costCode?: string | null;
+  label?: string;
+  amount?: string;
+}
+
+/**
+ * Replace-all upsert body for a job's budget.
+ */
+export interface PutBudgetInput {
+  targetAmount: string;
+  lines: BudgetLineInput[];
+}
+
