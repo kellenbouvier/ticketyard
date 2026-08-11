@@ -6,7 +6,7 @@ import {
   getGetJobBudgetQueryKey,
 } from '@workspace/api-client-react';
 import { formatCostCode, costCodesBySection } from '@workspace/cost-codes';
-import { computeBudgetTotals } from '@workspace/budget';
+import { computeBudgetTotals, parseBudgetAmount } from '@workspace/budget';
 import {
   ChevronDown,
   ChevronRight,
@@ -45,9 +45,20 @@ function SectionBlock({
   const subtotal = sectionSubtotal(state);
   const usedCodes = new Set(state.codeRows.map((r) => r.code).filter(Boolean));
 
-  const setExpanded = (expanded: boolean) => onChange({ ...state, expanded });
+  const setExpanded = (expanded: boolean) => {
+    if (!expanded) {
+      // Collapsing to a lump sum discards this section's cost-code lines. Do
+      // it explicitly (confirm) so entered code data never vanishes silently
+      // on save, and clear the rows so state == what's shown == what saves.
+      const hasCodeData = state.codeRows.some((r) => r.code || (r.amount ?? '').trim());
+      if (hasCodeData && !window.confirm(`Switch ${state.section} to a single lump sum? Its cost-code lines will be cleared.`)) return;
+      onChange({ ...state, expanded: false, codeRows: [], additional: '' });
+    } else {
+      onChange({ ...state, expanded: true, lump: '' });
+    }
+  };
   const addRow = () =>
-    onChange({ ...state, expanded: true, codeRows: [...state.codeRows, { key: nextRowKey(), code: '', amount: '' }] });
+    onChange({ ...state, expanded: true, lump: '', codeRows: [...state.codeRows, { key: nextRowKey(), code: '', amount: '' }] });
   const updateRow = (key: string, patch: Partial<{ code: string; amount: string }>) =>
     onChange({ ...state, codeRows: state.codeRows.map((r) => (r.key === key ? { ...r, ...patch } : r)) });
   const removeRow = (key: string) =>
@@ -193,7 +204,10 @@ export function BudgetBuilder({
   }, []);
 
   const loadTemplate = useCallback(() => {
-    setSections((cur) => cur.map((s) => ({ ...s, expanded: true })));
+    // Expand every section into its cost-code table. Clearing any lump keeps
+    // the visible state consistent with what saves (a hidden lump under an
+    // expanded section would be dropped on save).
+    setSections((cur) => cur.map((s) => ({ ...s, expanded: true, lump: '' })));
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -211,11 +225,16 @@ export function BudgetBuilder({
     }
   }, [announce, jobId, jobNumber, onClose, putBudget, qc, sections, target]);
 
-  const remainingTone =
-    totals.remaining > 0
-      ? 'text-[hsl(var(--muted-foreground))]'
-      : totals.remaining < 0
-        ? 'text-[hsl(var(--destructive))]'
+  // Only judge over/under once a target is actually set — a blank target is
+  // "not set yet", not "over budget".
+  const hasTarget = parseBudgetAmount(target) > 0;
+  const overTarget = hasTarget && totals.remaining < 0;
+  const remainingTone = !hasTarget
+    ? 'text-[hsl(var(--muted-foreground))]'
+    : totals.remaining < 0
+      ? 'text-[hsl(var(--destructive))]'
+      : totals.remaining > 0
+        ? 'text-[hsl(var(--muted-foreground))]'
         : 'text-emerald-600';
 
   return (
@@ -262,9 +281,9 @@ export function BudgetBuilder({
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">
-              {totals.remaining < 0 ? 'Over Target' : 'Remaining'}
+              {overTarget ? 'Over Target' : 'Remaining'}
             </span>
-            <span className={`font-mono-app text-[15px] font-bold ${remainingTone}`}>{currency(Math.abs(totals.remaining))}</span>
+            <span className={`font-mono-app text-[15px] font-bold ${remainingTone}`}>{hasTarget ? currency(Math.abs(totals.remaining)) : '—'}</span>
           </div>
         </div>
 

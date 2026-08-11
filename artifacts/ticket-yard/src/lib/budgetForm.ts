@@ -117,7 +117,11 @@ export function serializeSections(sections: SectionFormState[]): BudgetLineInput
  * block header and the grand total always agree. */
 export function sectionSubtotal(s: SectionFormState): number {
   if (s.expanded) {
-    const codes = s.codeRows.reduce((sum, r) => sum + parseBudgetAmount(r.amount), 0);
+    // Only rows with a selected code are saved (see serializeSections); a
+    // code-less row is incomplete, so it must NOT inflate the header subtotal
+    // — otherwise the block header and "Current"/grand total disagree and the
+    // amount silently vanishes on save.
+    const codes = s.codeRows.reduce((sum, r) => sum + (r.code ? parseBudgetAmount(r.amount) : 0), 0);
     return codes + (s.codeRows.length > 0 ? parseBudgetAmount(s.additional) : 0);
   }
   return parseBudgetAmount(s.lump);
