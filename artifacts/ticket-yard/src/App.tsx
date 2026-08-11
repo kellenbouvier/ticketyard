@@ -67,6 +67,7 @@ import { Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wo
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
+import { parseTonnage, formatTons } from '@/lib/tonnage';
 
 const queryClient = new QueryClient();
 
@@ -1483,21 +1484,32 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
   }, [announce, deleteTicket, job.id, rows]);
 
   // C&D landfill and inert/concrete recycling are tracked completely
-  // separately for cost/billing purposes — each category's amount is
-  // computed independently here and must never be added together into one
-  // blended total anywhere in the UI.
+  // separately for cost/billing purposes — each category's amount (and,
+  // below, each category's tonnage) is computed independently here and
+  // must never be added together into one blended total anywhere in the UI.
   const totals = useMemo(() => {
-    const withWeight = rows.filter((r) => r.extraction.weight.trim()).length;
+    const tonnages = rows.map((r) => parseTonnage(r.extraction.weight));
+    const withWeight = tonnages.filter((t) => t !== null).length;
     const amountForCategory = (category: WasteCategory) =>
       rows
         .filter((r) => r.extraction.wasteCategory === category)
         .reduce((s, r) => s + (Number(r.extraction.amount.replace(/[$,\s]/g, '')) || 0), 0)
         .toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+    // Blank/unparseable weights are excluded from the sum entirely (never
+    // guessed as 0 tons) — see parseTonnage().
+    const tonsForCategory = (category: WasteCategory) =>
+      rows
+        .filter((r) => r.extraction.wasteCategory === category)
+        .reduce((s, r) => s + (parseTonnage(r.extraction.weight) ?? 0), 0);
     return {
       count: rows.length,
       withWeight,
+      withoutWeight: rows.length - withWeight,
       cdAmount: amountForCategory('C&D'),
       inertAmount: amountForCategory('Inert'),
+      totalTons: tonnages.reduce((s, t) => s + (t ?? 0), 0),
+      cdTons: tonsForCategory('C&D'),
+      inertTons: tonsForCategory('Inert'),
     };
   }, [rows]);
 
@@ -1511,13 +1523,22 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
       r.fileName,
       r.status,
     ].map(v).join(','));
-    const blob = new Blob([[header.map(v).join(','), ...body].join('\n')], { type: 'text/csv;charset=utf-8' });
+    // Trailing tonnage summary — C&D and Inert stay on their own rows,
+    // never blended into one figure, matching the dashboard stat cards.
+    const summary = [
+      [],
+      ['Tonnage Summary'],
+      ['Total Net Tons', totals.totalTons.toFixed(2)],
+      ['C&D Landfill Tons', totals.cdTons.toFixed(2)],
+      ['Inert / Recycling Tons', totals.inertTons.toFixed(2)],
+    ].map((row) => row.map(v).join(','));
+    const blob = new Blob([[header.map(v).join(','), ...body, ...summary].join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = `dhg-register-${job.jobNumber}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click(); URL.revokeObjectURL(url);
     announce(`${rows.length} rows exported.`);
-  }, [announce, job.jobNumber, rows]);
+  }, [announce, job.jobNumber, rows, totals]);
 
   return (
     <div className="flex min-h-[100dvh] bg-[hsl(var(--background))]">
@@ -1554,13 +1575,17 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
             </div>
           </div>
 
-          {/* Stat cards — C&D and Inert amounts are always shown as separate
-              totals, never merged into one blended "waste" figure. */}
+          {/* Stat cards — C&D and Inert amounts (and tonnages, below) are
+              always shown as separate totals, never merged into one
+              blended "waste" figure. */}
           <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatCard label="Tickets" value={String(totals.count).padStart(2, '0')} detail="in this batch" tone="ink" />
-            <StatCard label="With Weight" value={String(totals.withWeight).padStart(2, '0')} detail={totals.count ? `${Math.round(totals.withWeight / totals.count * 100)}% of register` : 'awaiting upload'} tone="slate" />
+            <StatCard label="With Weight" value={String(totals.withWeight).padStart(2, '0')} detail={totals.count ? `${totals.withoutWeight} without tonnage` : 'awaiting upload'} tone="slate" />
             <StatCard label="C&D Landfill" value={totals.cdAmount} detail="amount, this batch" tone="red" />
             <StatCard label="Inert / Recycling" value={totals.inertAmount} detail="amount, this batch" tone="slate" />
+            <StatCard label="Total Tonnage" value={formatTons(totals.totalTons)} detail="net tons, this batch" tone="ink" />
+            <StatCard label="C&D Tonnage" value={formatTons(totals.cdTons)} detail="tons, this batch" tone="red" />
+            <StatCard label="Inert Tonnage" value={formatTons(totals.inertTons)} detail="tons, this batch" tone="slate" />
           </div>
 
           {/* Main content grid */}

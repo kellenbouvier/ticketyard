@@ -114,3 +114,30 @@ All notable changes to this project during the audit/overhaul are logged here.
     only defined 9 explicit tracks for what has actually been 12 rendered
     cells per row for a while (fields were added over time without
     updating it), silently wrapping each ticket row onto two grid rows.
+
+### Added
+- **Tonnage (weight) analysis.** Weight was already OCR-extracted per
+  ticket (`extractTonsWeight()` in the API server, a free-text
+  `weight` string like "12.34 Tons") but never totaled anywhere.
+  - `artifacts/ticket-yard/src/lib/tonnage.ts`: new `parseTonnage()` —
+    strips the unit word/commas/whitespace and parses the remainder as a
+    float; returns `null` (never a guessed `0`) for blank or unparseable
+    input, so it's excluded from sums entirely, matching this codebase's
+    "never guess" rule for OCR fields. `formatTons()` formats a tonnage
+    value with 2 decimals, a thousands separator, and a "tons" label.
+  - `artifacts/ticket-yard/src/App.tsx`: the `totals` useMemo now also
+    computes total net tons plus **independent** C&D tons and Inert tons
+    (mirroring the existing never-blended `cdAmount`/`inertAmount`
+    pattern — the two are never summed into one blended tonnage figure).
+    Three new stat cards ("Total Tonnage", "C&D Tonnage", "Inert
+    Tonnage") sit alongside the existing dollar cards; the existing "With
+    Weight" card's detail now also surfaces the count of tickets missing
+    a usable weight.
+  - CSV export: kept the existing per-row Weight column and appended a
+    trailing "Tonnage Summary" section listing Total Net Tons, C&D
+    Landfill Tons, and Inert / Recycling Tons on separate rows.
+  - New `artifacts/ticket-yard/tests/tonnage-regression.mjs` (run via
+    `pnpm --filter @workspace/ticket-yard run test:tonnage`, following
+    the existing tsx-based regression-test convention): covers
+    "12.34 Tons", "1,234.5 tons", unit-suffix variants, and
+    blank/garbage/wrong-unit input.
