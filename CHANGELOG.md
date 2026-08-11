@@ -5,6 +5,27 @@ All notable changes to this project during the audit/overhaul are logged here.
 ## Unreleased
 
 ### Added
+- LEED Waste & Scrap Diversion tracking, decoupled from the waste C&D/Inert
+  field and the budget module. A new shared package `@workspace/diversion`
+  (`lib/diversion`) is the single source of truth: the seven-material taxonomy
+  (`DIVERSION_MATERIALS`), `isKnownDiversionMaterial`/`isDivertedMaterial`, a
+  conservative `suggestDiversionMaterial(vendor)` (never guesses — null when
+  unsure), `computeDiversion` (per-material / diverted / residual tonnage and
+  a NaN-safe % diverted), `groupDiversionByMonth` (ordered `MMM-YY` buckets),
+  and a pure `buildLeedWorkbookModel` that emits one array-of-arrays sheet per
+  month mirroring the DHG "Waste & Scrap Diversion" layout. Covered by
+  `lib/diversion/tests/diversion.test.mjs`.
+- Ticket schema gains a nullable, indexed `diversion_material` column (plain
+  text, validated against the shared list at the API boundary — extensible
+  without a migration). `diversionMaterial` added to the OpenAPI ticket
+  schemas (extraction/record/create/update) and codegen; the API validates
+  known-or-null (400 on unknown) and the OCR extraction path suggests a
+  conservative default via `suggestDiversionMaterial`.
+- Register UI: a Material selector column (independent of Cost Code and Waste
+  Category), a Waste & Scrap Diversion summary panel (% diverted, total /
+  diverted / residual tonnage, per-material tonnage), and an "Export LEED
+  Report (.xlsx)" button that builds ONE workbook with a NEW TAB PER MONTH via
+  SheetJS (`xlsx`). The existing CSV export is unchanged.
 - In-page cost-code filter on the ticket register: a grouped-by-section
   "code — name" dropdown (plus "All" and "Needs review") that instantly
   narrows both the register rows and the Cost Code Totals panel to a single

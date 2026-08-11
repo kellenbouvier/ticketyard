@@ -30,6 +30,14 @@ import type {
 } from '@workspace/api-client-react';
 import { costCodesBySection, formatCostCode } from '@workspace/cost-codes';
 import {
+  DIVERSION_MATERIALS,
+  DIVERTED_MATERIALS,
+  computeDiversion,
+  buildLeedWorkbookModel,
+  type DiversionMaterial,
+} from '@workspace/diversion';
+import * as XLSX from 'xlsx';
+import {
   AlertTriangle,
   ArrowDownToLine,
   ArrowLeft,
@@ -43,7 +51,9 @@ import {
   CloudUpload,
   ExternalLink,
   FileImage,
+  FileSpreadsheet,
   Filter,
+  Recycle,
   HardHat,
   Home,
   Inbox,
@@ -91,7 +101,7 @@ type RowStatus = 'Reading' | 'Processed' | 'Failed' | 'Manual';
 // COST_CODE_SECTIONS below), so they're handled by separate onCategoryChange
 // / onCostCodeChange callbacks rather than the generic string-field
 // FieldKey/onChange path the other fields share.
-type RowExtraction = Omit<TicketExtraction, 'wasteCategory' | 'costCode'> & {
+type RowExtraction = Omit<TicketExtraction, 'wasteCategory' | 'costCode' | 'diversionMaterial'> & {
   // Null only for rows restored from a legacy record that no vendor rule
   // could confidently classify — "needs review", never guessed.
   wasteCategory: WasteCategory | null;
@@ -99,8 +109,13 @@ type RowExtraction = Omit<TicketExtraction, 'wasteCategory' | 'costCode'> & {
   // column). Null means "needs review" — never a guessed value, even for a
   // freshly-created row (unlike wasteCategory, there is no safe default).
   costCode: string | null;
+  // LEED Waste & Scrap Diversion material — independent of wasteCategory and
+  // the budget module. Its own dedicated selector; null = "needs review".
+  // Kept as string|null (mirroring costCode) so the raw server extraction
+  // assigns cleanly; validated against the known list server-side.
+  diversionMaterial: string | null;
 };
-type FieldKey = keyof Omit<TicketExtraction, 'wasteCategory' | 'costCode'>;
+type FieldKey = keyof Omit<TicketExtraction, 'wasteCategory' | 'costCode' | 'diversionMaterial'>;
 type TicketRow = {
   id: string;
   /** DB id once this row has been persisted; undefined while a fresh
@@ -148,6 +163,7 @@ function ticketRecordToRow(record: TicketRecord): TicketRow {
       description: record.description,
       wasteCategory: record.wasteCategory,
       costCode: record.costCode,
+      diversionMaterial: record.diversionMaterial,
     },
   };
 }
@@ -171,6 +187,9 @@ const emptyExtraction: RowExtraction = {
   // manual row always starts "needs review" until a vendor rule fires (see
   // suggestCostCode() server-side) or the user picks one.
   costCode: null,
+  // No safe default — a fresh row starts "needs review" until a vendor rule
+  // fires (suggestDiversionMaterial() server-side) or the user picks one.
+  diversionMaterial: null,
 };
 
 // Static — computed once from the shared taxonomy, not per-render.
@@ -1272,7 +1291,7 @@ function Sidebar({ year, job, onNewBatch, onBackToJobs, onBackToYears }: {
 // Source(170px) + 9 generic fields + Cost Code selector + Category selector
 // + Actions(108px) — must have exactly as many tracks as cells rendered per
 // row below.
-const REGISTER_GRID_COLS = 'grid-cols-[170px_1fr_.9fr_.9fr_.8fr_.85fr_.95fr_.75fr_.85fr_1.3fr_1.5fr_1.05fr_108px]';
+const REGISTER_GRID_COLS = 'grid-cols-[170px_1fr_.9fr_.9fr_.8fr_.85fr_.95fr_.75fr_.85fr_1.3fr_1.5fr_1.5fr_1.05fr_108px]';
 
 function WasteCategorySelect({ value, disabled, onChange, ariaLabel }: {
   value: WasteCategory | null;
@@ -1325,11 +1344,37 @@ function CostCodeSelect({ value, disabled, onChange, ariaLabel }: {
   );
 }
 
-function TicketRegister({ rows, onChange, onCategoryChange, onCostCodeChange, onDelete, onRetry, onPreview }: {
+// LEED Waste & Scrap Diversion material selector (see @workspace/diversion).
+// A simple flat select of the seven materials + a "Needs review" empty
+// option; independent of the Cost Code and Waste Category selectors.
+function MaterialSelect({ value, disabled, onChange, ariaLabel }: {
+  value: string | null;
+  disabled: boolean;
+  onChange: (value: DiversionMaterial) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <select
+      aria-label={ariaLabel}
+      disabled={disabled}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value as DiversionMaterial)}
+      className={`ticket-field ${value ? '' : 'text-[hsl(var(--destructive))]'}`}
+    >
+      {!value && <option value="" disabled>Needs review</option>}
+      {DIVERSION_MATERIALS.map((m) => (
+        <option key={m} value={m}>{m}</option>
+      ))}
+    </select>
+  );
+}
+
+function TicketRegister({ rows, onChange, onCategoryChange, onCostCodeChange, onDiversionMaterialChange, onDelete, onRetry, onPreview }: {
   rows: TicketRow[];
   onChange: (id: string, field: FieldKey, value: string) => void;
   onCategoryChange: (id: string, category: WasteCategory) => void;
   onCostCodeChange: (id: string, costCode: string) => void;
+  onDiversionMaterialChange: (id: string, material: DiversionMaterial) => void;
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   onPreview: (row: TicketRow) => void;
@@ -1349,9 +1394,9 @@ function TicketRegister({ rows, onChange, onCategoryChange, onCostCodeChange, on
         </div>
       </div>
       <div className="overflow-x-auto">
-        <div className="min-w-[1450px]">
+        <div className="min-w-[1600px]">
           <div className={`grid ${REGISTER_GRID_COLS} gap-3 bg-[hsl(var(--muted)/.5)] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]`}>
-            <div>Source</div>{fields.map((f) => <div key={f.key}>{f.short}</div>)}<div>Cost Code</div><div>Category</div><div className="text-right">Actions</div>
+            <div>Source</div>{fields.map((f) => <div key={f.key}>{f.short}</div>)}<div>Cost Code</div><div>Material</div><div>Category</div><div className="text-right">Actions</div>
           </div>
           {rows.length === 0 && (
             <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
@@ -1387,6 +1432,12 @@ function TicketRegister({ rows, onChange, onCategoryChange, onCostCodeChange, on
                 disabled={row.status === 'Reading'}
                 value={row.extraction.costCode}
                 onChange={(costCode) => onCostCodeChange(row.id, costCode)}
+              />
+              <MaterialSelect
+                ariaLabel={`Diversion material for ${row.fileName}`}
+                disabled={row.status === 'Reading'}
+                value={row.extraction.diversionMaterial}
+                onChange={(material) => onDiversionMaterialChange(row.id, material)}
               />
               <WasteCategorySelect
                 ariaLabel={`Waste category for ${row.fileName}`}
@@ -1486,6 +1537,54 @@ function CostCodeReport({ totals }: { totals: ReturnType<typeof computeCostCodeT
           <span>Grand Total</span>
           <span className="font-mono-app">{currency(totals.grandTotal)}</span>
         </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── LEED diversion summary panel ───────────────────────────────────────────
+// Per-batch/job diversion snapshot: % diverted, total / diverted / residual
+// tonnage, and per-material diverted tonnage. Uses the shared
+// computeDiversion() so the UI, API, export and tests all agree. Independent
+// of the waste-category and cost-code panels.
+function DiversionPanel({ rows }: { rows: TicketRow[] }) {
+  const totals = useMemo(
+    () => computeDiversion(rows.map((r) => ({ weight: r.extraction.weight, diversionMaterial: r.extraction.diversionMaterial }))),
+    [rows],
+  );
+  if (!rows.length) return null;
+  const pct = `${(totals.pctDiverted * 100).toFixed(1)}%`;
+  return (
+    <section className="mt-5 overflow-hidden rounded-lg border border-[hsl(var(--card-border))] bg-white shadow-sm animate-rise delay-3">
+      <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] px-5 py-3.5">
+        <Recycle size={15} className="text-[hsl(var(--primary))]" />
+        <div>
+          <h2 className="text-[14px] font-semibold">Waste &amp; Scrap Diversion</h2>
+          <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">LEED diversion for this job — recyclables diverted vs. residual to landfill.</p>
+        </div>
+        <span className="ml-auto rounded-md bg-[hsl(var(--primary)/.1)] px-3 py-1 font-mono-app text-[15px] font-bold text-[hsl(var(--primary))]">{pct}</span>
+      </div>
+      <div className="grid grid-cols-3 divide-x divide-[hsl(var(--border)/.7)] border-b border-[hsl(var(--border)/.7)]">
+        <div className="px-5 py-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">Total Tonnage</div>
+          <div className="mt-1 font-mono-app text-[14px] font-semibold">{formatTons(totals.totalTonnage)}</div>
+        </div>
+        <div className="px-5 py-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[.08em] text-[hsl(var(--primary))]">Diverted</div>
+          <div className="mt-1 font-mono-app text-[14px] font-semibold">{formatTons(totals.totalDiverted)}</div>
+        </div>
+        <div className="px-5 py-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[.08em] text-[hsl(var(--destructive))]">Residual / Trash</div>
+          <div className="mt-1 font-mono-app text-[14px] font-semibold">{formatTons(totals.residual)}</div>
+        </div>
+      </div>
+      <div className="divide-y divide-[hsl(var(--border)/.7)]">
+        {DIVERTED_MATERIALS.map((m) => (
+          <div key={m} className="flex items-center justify-between px-5 py-2 text-[12px] text-[hsl(var(--muted-foreground))]">
+            <span>{m}</span>
+            <span className="font-mono-app">{formatTons(totals.perMaterial[m])}</span>
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -1623,6 +1722,15 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
     }
   }, [announce, job.id, rows, updateTicket]);
 
+  const updateDiversionMaterial = useCallback((id: string, material: DiversionMaterial) => {
+    setRows((cur) => cur.map((r) => r.id === id ? { ...r, extraction: { ...r.extraction, diversionMaterial: material } } : r));
+    const row = rows.find((r) => r.id === id);
+    if (row?.serverId) {
+      void updateTicket.mutateAsync({ jobId: job.id, ticketId: row.serverId, data: { diversionMaterial: material } })
+        .catch(() => announce('Could not save the diversion material. Try again.', 'error'));
+    }
+  }, [announce, job.id, rows, updateTicket]);
+
   const deleteRow = useCallback((id: string) => {
     const row = rows.find((r) => r.id === id);
     setRows((cur) => cur.filter((r) => r.id !== id));
@@ -1736,6 +1844,38 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
     a.click(); URL.revokeObjectURL(url);
     announce(`${rows.length} rows exported.`);
   }, [announce, job.jobNumber, rows, totals]);
+
+  // Export LEED Report (.xlsx): ONE workbook with a NEW TAB PER MONTH present
+  // in this job's tickets, each mirroring the DHG "Waste & Scrap Diversion"
+  // layout. The workbook model is built by the shared, unit-tested
+  // buildLeedWorkbookModel(); this handler only turns that pure model into a
+  // SheetJS workbook and downloads it. Distinct from Export CSV.
+  const exportLeed = useCallback(() => {
+    const model = buildLeedWorkbookModel(
+      rows.map((r) => ({
+        date: r.extraction.date,
+        vendor: r.extraction.vendor,
+        weight: r.extraction.weight,
+        ticketNumber: r.extraction.ticketNumber,
+        jobNumber: r.extraction.jobNumber || job.jobNumber,
+        diversionMaterial: r.extraction.diversionMaterial,
+      })),
+      { jobName: job.jobName, location: '' },
+    );
+    if (!model.sheets.length) {
+      announce('No tickets to export.', 'info');
+      return;
+    }
+    const wb = XLSX.utils.book_new();
+    for (const sheet of model.sheets) {
+      const ws = XLSX.utils.aoa_to_sheet(sheet.aoa);
+      // Sheet names must be <=31 chars and free of : \ / ? * [ ] — the month
+      // labels ("Sep-25") already satisfy this.
+      XLSX.utils.book_append_sheet(wb, ws, sheet.name.slice(0, 31));
+    }
+    XLSX.writeFile(wb, `dhg-leed-diversion-${job.jobNumber}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    announce(`LEED report exported (${model.sheets.length} month${model.sheets.length === 1 ? '' : 's'}).`);
+  }, [announce, job.jobName, job.jobNumber, rows]);
 
   return (
     <div className="flex min-h-[100dvh] bg-[hsl(var(--background))]">
@@ -1863,7 +2003,7 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
                   <span className="text-[11px] text-[hsl(var(--muted-foreground))]">Showing {visibleRows.length} of {rows.length} ticket{rows.length === 1 ? '' : 's'}</span>
                 )}
               </div>
-              <TicketRegister rows={visibleRows} onChange={updateField} onCategoryChange={updateCategory} onCostCodeChange={updateCostCode} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
+              <TicketRegister rows={visibleRows} onChange={updateField} onCategoryChange={updateCategory} onCostCodeChange={updateCostCode} onDiversionMaterialChange={updateDiversionMaterial} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
               <div className="mt-3.5 flex items-center justify-between gap-3">
                 <button
                   onClick={addManualRow}
@@ -1871,15 +2011,26 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
                 >
                   <Plus size={14} /> Add Manual Row
                 </button>
-                <button
-                  onClick={exportCsv}
-                  disabled={!rows.length}
-                  className="flex items-center gap-2 rounded-md bg-[hsl(var(--primary))] px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-[hsl(var(--primary)/.9)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <ArrowDownToLine size={14} /> Export CSV
-                  <span className="ml-1 border-l border-white/25 pl-2 font-mono-app text-[10px]">.csv</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={exportLeed}
+                    disabled={!rows.length}
+                    className="flex items-center gap-2 rounded-md border border-[hsl(var(--primary)/.5)] bg-white px-4 py-2 text-[12px] font-semibold text-[hsl(var(--primary))] shadow-sm transition hover:bg-[hsl(var(--primary))] hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <FileSpreadsheet size={14} /> Export LEED Report
+                    <span className="ml-1 border-l border-current/25 pl-2 font-mono-app text-[10px]">.xlsx</span>
+                  </button>
+                  <button
+                    onClick={exportCsv}
+                    disabled={!rows.length}
+                    className="flex items-center gap-2 rounded-md bg-[hsl(var(--primary))] px-4 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-[hsl(var(--primary)/.9)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ArrowDownToLine size={14} /> Export CSV
+                    <span className="ml-1 border-l border-white/25 pl-2 font-mono-app text-[10px]">.csv</span>
+                  </button>
+                </div>
               </div>
+              <DiversionPanel rows={rows} />
               <CostCodeReport totals={visibleCostCodeTotals} />
             </div>
           </div>
