@@ -868,44 +868,51 @@ function RecentActivityPanel({ year, onOpen, announce }: {
         {jobs.map((job) => (
           <div
             key={job.id}
-            className="group grid grid-cols-[40px_180px_1fr_160px_90px_100px] items-center gap-4 border-t border-[hsl(var(--border)/.5)] px-6 py-3.5 transition hover:bg-[hsl(var(--muted)/.25)]"
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpen(job)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(job); } }}
+            className="group grid cursor-pointer grid-cols-[1fr_auto] items-center gap-3 border-t border-[hsl(var(--border)/.5)] px-4 py-3.5 transition hover:bg-[hsl(var(--muted)/.25)] md:grid-cols-[40px_180px_1fr_160px_90px_100px] md:gap-4 md:px-6"
           >
-            <div className="flex items-center justify-center">
+            <div className="hidden items-center justify-center md:flex">
               <CalendarDays size={15} className="text-[hsl(var(--muted-foreground)/.45)]" />
             </div>
-            <div>
-              <span className="font-mono-app text-[11px] font-bold tracking-wider text-[hsl(var(--primary))]">
-                {job.jobNumber}
-              </span>
+            {/* Mobile: job number + name stacked in one tap cell; desktop: separate columns */}
+            <div className="min-w-0 md:contents">
+              <div className="md:flex md:items-center">
+                <span className="font-mono-app text-[11px] font-bold tracking-wider text-[hsl(var(--primary))]">
+                  {job.jobNumber}
+                </span>
+              </div>
+              <div className="min-w-0 truncate text-[13px] text-[hsl(var(--foreground))]">{job.jobName}</div>
             </div>
-            <div className="min-w-0 truncate text-[13px] text-[hsl(var(--foreground))]">{job.jobName}</div>
-            <div className="text-[12px] text-[hsl(var(--muted-foreground))]">—</div>
-            <div className="text-right font-mono-app text-[12px] text-[hsl(var(--muted-foreground))]">—</div>
+            <div className="hidden text-[12px] text-[hsl(var(--muted-foreground))] md:block">—</div>
+            <div className="hidden text-right font-mono-app text-[12px] text-[hsl(var(--muted-foreground))] md:block">—</div>
             <div className="flex items-center justify-end gap-1">
               <button
-                onClick={() => setModal({ open: true, mode: 'edit', job, jobNumber: job.jobNumber, jobName: job.jobName, error: '' })}
+                onClick={(e) => { e.stopPropagation(); setModal({ open: true, mode: 'edit', job, jobNumber: job.jobNumber, jobName: job.jobName, error: '' }); }}
                 title="Edit"
-                className="rounded p-1.5 text-[hsl(var(--muted-foreground))] opacity-0 transition hover:text-[hsl(var(--foreground))] group-hover:opacity-100"
+                className="rounded p-1.5 text-[hsl(var(--muted-foreground))] opacity-100 transition hover:text-[hsl(var(--foreground))] md:opacity-0 md:group-hover:opacity-100"
               >
                 <Pencil size={12} />
               </button>
               <button
-                onClick={() => void handleDeleteJob(job)}
+                onClick={(e) => { e.stopPropagation(); void handleDeleteJob(job); }}
                 title="Delete"
-                className="rounded p-1.5 text-[hsl(var(--muted-foreground))] opacity-0 transition hover:text-[hsl(var(--destructive))] group-hover:opacity-100"
+                className="rounded p-1.5 text-[hsl(var(--muted-foreground))] opacity-100 transition hover:text-[hsl(var(--destructive))] md:opacity-0 md:group-hover:opacity-100"
               >
                 <Trash2 size={12} />
               </button>
               <button
-                onClick={() => setBudgetJob(job)}
+                onClick={(e) => { e.stopPropagation(); setBudgetJob(job); }}
                 title="Budget"
-                className="rounded p-1.5 text-[hsl(var(--muted-foreground))] opacity-0 transition hover:text-[hsl(var(--primary))] group-hover:opacity-100"
+                className="rounded p-1.5 text-[hsl(var(--muted-foreground))] opacity-100 transition hover:text-[hsl(var(--primary))] md:opacity-0 md:group-hover:opacity-100"
               >
                 <Wallet size={12} />
               </button>
               <button
-                onClick={() => onOpen(job)}
-                className="rounded border border-[hsl(var(--primary)/.5)] px-3 py-1 text-[11px] font-semibold text-[hsl(var(--primary))] transition hover:bg-[hsl(var(--primary))] hover:text-white"
+                onClick={(e) => { e.stopPropagation(); onOpen(job); }}
+                className="shrink-0 rounded border border-[hsl(var(--primary)/.5)] px-3 py-1 text-[11px] font-semibold text-[hsl(var(--primary))] transition hover:bg-[hsl(var(--primary))] hover:text-white"
               >
                 Open
               </button>
