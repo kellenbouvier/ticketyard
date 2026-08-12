@@ -1971,8 +1971,8 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
             <StatCard label="Inert Tonnage" value={formatTons(totals.inertTons)} detail="tons, this batch" tone="slate" />
           </div>
 
-          {/* Main content grid */}
-          <div className="grid grid-cols-[minmax(280px,.6fr)_minmax(0,1.4fr)] gap-5">
+          {/* Main content grid — stacks on mobile so the register isn't crushed */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(280px,.6fr)_minmax(0,1.4fr)]">
             {/* Left: upload zone + info */}
             <div className="space-y-4">
               <section
@@ -2044,7 +2044,7 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
                 )}
               </div>
               <TicketRegister rows={visibleRows} onChange={updateField} onCategoryChange={updateCategory} onCostCodeChange={updateCostCode} onDiversionMaterialChange={updateDiversionMaterial} onDelete={deleteRow} onRetry={retryRow} onPreview={setPreviewRow} />
-              <div className="mt-3.5 flex items-center justify-between gap-3">
+              <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3">
                 <button
                   onClick={addManualRow}
                   className="flex items-center gap-1.5 rounded-md border border-[hsl(var(--border))] bg-white px-3.5 py-2 text-[12px] font-semibold transition hover:border-[hsl(var(--primary)/.5)] hover:bg-[hsl(var(--primary)/.04)]"
