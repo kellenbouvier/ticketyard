@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
@@ -13,6 +13,9 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 const execFileAsync = promisify(execFile);
 const IMAGE_PREPROCESS_TIMEOUT_MS = 20_000;
+const PDF_RASTERIZE_TIMEOUT_MS = 45_000;
+const PDF_MAX_PAGES = 20;
+const PDF_RASTER_DPI = "200";
 const OCR_TIMEOUT_MS = 8_000;
 const OCR_MAX_DIMENSION = 2400;
 const OCR_SCALE = "200%";
@@ -999,6 +1002,65 @@ function parseOcrText(text: string, alternateTexts: string[] = []): TicketFields
   });
 }
 
+// Rasterize a base64-encoded PDF into one base64 PNG per page using
+// Ghostscript (`gs`, already installed in the OCR env — no paid AI provider,
+// same local pipeline as image OCR). Ghostscript is used directly rather than
+// via ImageMagick so we never hit ImageMagick's PDF coder policy. Pages are
+// capped at PDF_MAX_PAGES.
+async function rasterizePdfToPngPages(pdfData: string): Promise<string[]> {
+  const workingDirectory = await mkdtemp(path.join(tmpdir(), "ticketyard-pdf-"));
+  try {
+    const pdfPath = path.join(workingDirectory, "input.pdf");
+    await writeFile(pdfPath, Buffer.from(pdfData, "base64"));
+    const outputPattern = path.join(workingDirectory, "page-%03d.png");
+    await runCommand(
+      "gs",
+      [
+        "-q",
+        "-dNOPAUSE",
+        "-dBATCH",
+        "-dSAFER",
+        "-sDEVICE=png16m",
+        `-r${PDF_RASTER_DPI}`,
+        `-dLastPage=${PDF_MAX_PAGES}`,
+        `-sOutputFile=${outputPattern}`,
+        pdfPath,
+      ],
+      false,
+      PDF_RASTERIZE_TIMEOUT_MS,
+    );
+    const entries = await readdir(workingDirectory);
+    const pageFiles = entries
+      .filter((name) => /^page-?\d+\.png$/i.test(name))
+      .map((name) => ({
+        name,
+        index: Number.parseInt(name.replace(/\D+/g, ""), 10) || 0,
+      }))
+      .sort((a, b) => a.index - b.index);
+    const pages: string[] = [];
+    for (const file of pageFiles) {
+      const buffer = await readFile(path.join(workingDirectory, file.name));
+      pages.push(buffer.toString("base64"));
+    }
+    return pages;
+  } finally {
+    await rm(workingDirectory, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+// Runs the shared local OCR + deterministic field parser on a single image
+// (base64). Returns the parsed extraction and whether OCR found no readable
+// text. Reused by both the single-image route and the multi-page PDF route.
+async function extractTicketFromImage(
+  imageData: string,
+  mediaType: string,
+): Promise<{ extraction: ReturnType<typeof parseOcrText>; empty: boolean }> {
+  const ocrResult = await runLocalOcr(imageData, mediaType);
+  const ocrText = ocrResult.text;
+  const extraction = parseOcrText(ocrText, ocrResult.alternateTexts);
+  return { extraction, empty: !ocrText.trim() };
+}
+
 router.post("/tickets/extract", async (req, res) => {
   const parsedBody = ExtractTicketBody.safeParse(req.body);
   if (!parsedBody.success) {
@@ -1070,6 +1132,80 @@ router.post("/tickets/extract", async (req, res) => {
     res.status(502).json({
       error:
         "The local OCR reader could not process this image. Try a JPG or PNG ticket photo.",
+    });
+  }
+});
+
+// Multi-page PDF ingestion: rasterize each page to a PNG and run the same
+// local Tesseract OCR + deterministic parser used for images. Returns one
+// extraction per page so the client can create a ticket row per page.
+router.post("/tickets/extract-pdf", async (req, res) => {
+  const body = req.body as { fileName?: unknown; pdfData?: unknown } | undefined;
+  const fileName = typeof body?.fileName === "string" ? body.fileName : "";
+  const pdfData = typeof body?.pdfData === "string" ? body.pdfData : "";
+  if (!fileName.trim() || !pdfData.length) {
+    res.status(400).json({ error: "Please provide a PDF file." });
+    return;
+  }
+
+  try {
+    logger.info({ fileName, pdfBytesBase64: pdfData.length }, "Starting PDF ticket OCR");
+    const pageImages = await rasterizePdfToPngPages(pdfData);
+    if (!pageImages.length) {
+      res
+        .status(422)
+        .json({ error: "No pages could be read from this PDF. Try a different file." });
+      return;
+    }
+
+    const pages: Array<{
+      pageNumber: number;
+      extraction: ReturnType<typeof parseOcrText> | null;
+      error: string | null;
+    }> = [];
+    for (let i = 0; i < pageImages.length; i += 1) {
+      const pageNumber = i + 1;
+      try {
+        const { extraction, empty } = await extractTicketFromImage(
+          pageImages[i],
+          "image/png",
+        );
+        if (empty) {
+          pages.push({
+            pageNumber,
+            extraction: null,
+            error: "No readable text was found on this page.",
+          });
+        } else {
+          pages.push({ pageNumber, extraction, error: null });
+        }
+      } catch (pageError) {
+        logger.warn(
+          { err: pageError, fileName, pageNumber },
+          "OCR failed for one PDF page",
+        );
+        pages.push({
+          pageNumber,
+          extraction: null,
+          error: "The local OCR reader could not process this page.",
+        });
+      }
+    }
+
+    logger.info(
+      {
+        fileName,
+        pageCount: pageImages.length,
+        processed: pages.filter((p) => p.extraction).length,
+      },
+      "PDF ticket OCR completed",
+    );
+    res.json({ pageCount: pageImages.length, pages });
+  } catch (error) {
+    logger.error({ err: error, fileName }, "PDF ticket OCR failed");
+    res.status(502).json({
+      error:
+        "The PDF reader could not process this file. Try a clearer PDF or upload the pages as images.",
     });
   }
 });

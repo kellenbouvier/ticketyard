@@ -36,7 +36,7 @@ app.use(
 app.use(cors());
 // Ticket images are sent one at a time as base64 so the API can run local OCR
 // without exposing provider credentials or requiring a paid AI service.
-app.use(express.json({ limit: "15mb" }));
+app.use(express.json({ limit: "30mb" }));
 app.use(express.urlencoded({ extended: true }));
 // getAuthConfig() throws if APP_LOGIN_USER/APP_LOGIN_PASSWORD/SESSION_SECRET
 // are unset — this is the server's fail-fast startup check for the login

@@ -236,6 +236,11 @@ function getSupportedMediaType(file: File): TicketExtractionInput['mediaType'] |
   return null;
 }
 
+function isPdfFile(file: File): boolean {
+  if (file.type === 'application/pdf') return true;
+  return file.name.split('.').pop()?.toLowerCase() === 'pdf';
+}
+
 function readFileAsBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1667,9 +1672,66 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
     setTimeout(() => setNotice((c) => c?.message === message ? null : c), 3600);
   }, []);
 
+  // Multi-page PDF ingestion. Each PDF is sent to the server, rasterized to
+  // one image per page, OCR'd through the same local Tesseract pipeline as
+  // images, and turned into one ticket row per page.
+  const processPdf = useCallback(async (file: File) => {
+    const baseId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    announce(`Reading ${file.name}…`, 'info');
+    let pdfData = '';
+    try {
+      pdfData = await readFileAsBase64(file);
+    } catch {
+      announce(`Could not read ${file.name}.`, 'error');
+      return;
+    }
+    type PdfPage = { pageNumber: number; extraction: TicketExtraction | null; error: string | null };
+    let pages: PdfPage[] = [];
+    try {
+      const resp = await fetch('/api/tickets/extract-pdf', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ fileName: file.name, pdfData }),
+      });
+      if (!resp.ok) {
+        let msg = 'Could not read this PDF.';
+        try { const e = await resp.json(); if (e?.error) msg = e.error; } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+      const data = await resp.json();
+      pages = Array.isArray(data?.pages) ? (data.pages as PdfPage[]) : [];
+    } catch (err) {
+      announce(`${file.name}: ${err instanceof Error ? err.message : 'PDF extraction failed.'}`, 'error');
+      return;
+    }
+    if (!pages.length) { announce(`No pages found in ${file.name}.`, 'error'); return; }
+    for (const page of pages) {
+      const id = `${baseId}-p${page.pageNumber}`;
+      const pageName = `${file.name} (p${page.pageNumber})`;
+      const extraction = page.extraction;
+      const status: RowStatus = extraction ? 'Processed' : 'Failed';
+      const message = page.error ?? 'No readable text was found on this page.';
+      setRows((cur) => [{ id, hasSourceImage: false, fileName: pageName, preview: samplePreview(`PDF PAGE ${page.pageNumber}`), status, extraction: extraction ?? emptyExtraction, error: extraction ? undefined : message }, ...cur]);
+      try {
+        const created = await createTicket.mutateAsync({
+          jobId: job.id,
+          data: { fileName: pageName, status, error: extraction ? null : message, ...(extraction ?? emptyExtraction) },
+        });
+        setRows((cur) => cur.map((r) => r.id === id ? { ...r, serverId: created.id } : r));
+      } catch {
+        announce(`${pageName} processed but could not be saved. Refreshing will lose this row.`, 'error');
+      }
+    }
+    const ok = pages.filter((p) => p.extraction).length;
+    if (ok) announce(`${file.name}: ${ok}/${pages.length} page(s) processed. Give the fields a quick look.`);
+    else announce(`${file.name}: no readable text found on any page.`, 'error');
+  }, [announce, createTicket, job.id]);
+
   const processFile = useCallback(async (file: File) => {
+    if (isPdfFile(file)) { void processPdf(file); return; }
     const mediaType = getSupportedMediaType(file);
-    if (!mediaType) { announce(`${file.name} isn't supported. Use JPG, PNG, WEBP, or GIF.`, 'error'); return; }
+    if (!mediaType) { announce(`${file.name} isn't supported. Use JPG, PNG, WEBP, GIF, or PDF.`, 'error'); return; }
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const preview = URL.createObjectURL(file);
     setRows((cur) => [{ id, hasSourceImage: true, fileName: file.name, preview, status: 'Reading', extraction: emptyExtraction }, ...cur]);
@@ -1695,7 +1757,7 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
     }
     if (extraction) announce(`${file.name} processed. Give the fields a quick look.`);
     else announce(`${file.name}: ${message}`, 'error');
-  }, [announce, createTicket, extractMutation, job.id]);
+  }, [announce, createTicket, extractMutation, job.id, processPdf]);
 
   const handleFiles = useCallback((files: FileList | File[]) => {
     Array.from(files).forEach((f) => void processFile(f));
@@ -1985,7 +2047,7 @@ function Register({ year, job, onBackToJobs, onBackToYears }: {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
+                  accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/jpeg,image/png,image/webp,image/gif,application/pdf"
                   multiple
                   className="hidden"
                   onChange={(e) => { if (e.target.files) handleFiles(e.target.files); e.target.value = ''; }}
